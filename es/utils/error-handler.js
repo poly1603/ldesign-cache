@@ -1,0 +1,180 @@
+/*!
+ * ***********************************
+ * @ldesign/cache v0.1.1           *
+ * Built with rollup               *
+ * Build time: 2024-10-21 14:32:03 *
+ * Build mode: production          *
+ * Minified: No                    *
+ * ***********************************
+ */
+class ErrorHandler {
+  /**
+   * 安全执行异步操作
+   *
+   * @param operation - 要执行的异步操作
+   * @param options - 错误处理选项
+   * @returns 执行结果
+   *
+   * @example
+   * ```typescript
+   * const result = await ErrorHandler.safeAsync(
+   *   () => riskyOperation(),
+   *   { logPrefix: '[Cache]', defaultValue: null }
+   * )
+   *
+   * if (result.success) {
+   *
+   * } else {
+   *   console.error('操作失败:', result.error?.message)
+   * }
+   * ```
+   */
+  static async safeAsync(operation, options = {}) {
+    const {
+      logError = true,
+      logPrefix = "[ErrorHandler]",
+      errorTransform = (err) => err instanceof Error ? err : new Error(String(err))
+    } = options;
+    try {
+      const data = await operation();
+      return {
+        success: true,
+        data
+      };
+    } catch (error) {
+      const transformedError = errorTransform(error);
+      if (logError) {
+        console.error(`${logPrefix} Operation failed:`, transformedError.message);
+      }
+      return {
+        success: false,
+        error: transformedError
+      };
+    }
+  }
+  /**
+   * 安全执行同步操作
+   *
+   * @param operation - 要执行的同步操作
+   * @param options - 错误处理选项
+   * @returns 执行结果或默认值
+   */
+  static safeSync(operation, options = {}) {
+    const {
+      logError = true,
+      logPrefix = "[ErrorHandler]",
+      defaultValue,
+      rethrow = false,
+      errorTransform = (err) => err instanceof Error ? err : new Error(String(err))
+    } = options;
+    try {
+      return operation();
+    } catch (error) {
+      const transformedError = errorTransform(error);
+      if (logError) {
+        console.error(`${logPrefix} Operation failed:`, transformedError.message);
+      }
+      if (rethrow) {
+        throw transformedError;
+      }
+      return defaultValue;
+    }
+  }
+  /**
+   * 创建带重试机制的异步操作
+   *
+   * @param operation - 要执行的异步操作
+   * @param maxRetries - 最大重试次数
+   * @param delay - 重试延迟时间（毫秒）
+   * @param options - 错误处理选项
+   * @returns 执行结果
+   */
+  static async withRetry(operation, maxRetries = 3, delay = 1e3, options = {}) {
+    const {
+      logPrefix = "[ErrorHandler]"
+    } = options;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const result = await this.safeAsync(operation, {
+        ...options,
+        logError: attempt === maxRetries
+        // 只在最后一次失败时记录日志
+      });
+      if (result.success) {
+        return result;
+      }
+      if (attempt < maxRetries) {
+        console.warn(`${logPrefix} Attempt ${attempt} failed, retrying in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+    return {
+      success: false,
+      error: new Error(`Operation failed after ${maxRetries} attempts`)
+    };
+  }
+  /**
+   * 标准化错误对象
+   *
+   * @param error - 原始错误
+   * @param context - 错误上下文信息
+   * @returns 标准化的错误对象
+   */
+  static normalizeError(error, context) {
+    if (error instanceof Error) {
+      return context ? new Error(`${context}: ${error.message}`) : error;
+    }
+    const message = typeof error === "string" ? error : "Unknown error";
+    return new Error(context ? `${context}: ${message}` : message);
+  }
+  /**
+   * 检查是否为特定类型的错误
+   *
+   * @param error - 错误对象
+   * @param patterns - 错误模式（字符串或正则表达式）
+   * @returns 是否匹配
+   */
+  static isErrorType(error, ...patterns) {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+    return patterns.some((pattern) => {
+      if (typeof pattern === "string") {
+        return error.message.includes(pattern);
+      }
+      return pattern.test(error.message);
+    });
+  }
+  /**
+   * 创建错误处理装饰器
+   *
+   * @param options - 错误处理选项
+   * @returns 装饰器函数
+   */
+  static createDecorator(options = {}) {
+    return function(target, propertyKey, descriptor) {
+      const originalMethod = descriptor.value;
+      descriptor.value = async function(...args) {
+        const result = await ErrorHandler.safeAsync(() => originalMethod.apply(this, args), options);
+        if (result.success) {
+          return result.data;
+        }
+        if (options.rethrow !== false) {
+          throw result.error;
+        }
+        return options.defaultValue;
+      };
+      return descriptor;
+    };
+  }
+}
+function handleErrors(options = {}) {
+  return ErrorHandler.createDecorator(options);
+}
+const safeAsync = ErrorHandler.safeAsync;
+const safeSync = ErrorHandler.safeSync;
+const normalizeError = ErrorHandler.normalizeError;
+const isErrorType = ErrorHandler.isErrorType;
+
+export { ErrorHandler, handleErrors, isErrorType, normalizeError, safeAsync, safeSync };
+/*! End of @ldesign/cache | Powered by @ldesign/builder */
+//# sourceMappingURL=error-handler.js.map
