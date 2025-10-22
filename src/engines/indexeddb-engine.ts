@@ -251,7 +251,7 @@ export class IndexedDBEngine extends BaseStorageEngine {
       const deletePromises: Promise<void>[] = []
 
       if (cursor) {
-        ;(cursor as any).onsuccess = (event: any) => {
+        ; (cursor as any).onsuccess = (event: any) => {
           const cursor = (event.target as IDBRequest).result
           if (cursor) {
             deletePromises.push(
@@ -301,5 +301,188 @@ export class IndexedDBEngine extends BaseStorageEngine {
    */
   protected async updateUsedSize(): Promise<void> {
     this._usedSize = await this.getDatabaseSize()
+  }
+
+  /**
+   * 批量设置缓存项（优化版本 - 使用事务）
+   * 
+   * IndexedDB 的批量操作使用单个事务，性能显著提升
+   * 
+   * @param items - 要设置的键值对数组
+   * @returns 设置结果数组
+   */
+  async batchSet(items: Array<{ key: string, value: string, ttl?: number }>): Promise<boolean[]> {
+    if (!this.available) {
+      return items.map(() => false)
+    }
+
+    const results: boolean[] = []
+    const now = Date.now()
+
+    try {
+      // 使用单个事务批量写入
+      const transaction = this.getTransaction('readwrite')
+      const store = transaction.objectStore(this.storeName)
+
+      for (const { key, value, ttl } of items) {
+        try {
+          const item = {
+            key,
+            value,
+            createdAt: now,
+            expiresAt: ttl ? now + ttl : undefined,
+          }
+
+          store.put(item)
+          results.push(true)
+        }
+        catch (error) {
+          console.error(`Failed to set ${key}:`, error)
+          results.push(false)
+        }
+      }
+
+      // 等待事务完成
+      await new Promise<void>((resolve, reject) => {
+        transaction.oncomplete = () => resolve()
+        transaction.onerror = () => reject(transaction.error)
+      })
+
+      // 批量操作后一次性更新大小
+      await this.updateUsedSize()
+    }
+    catch (error) {
+      console.error('Batch set transaction failed:', error)
+      // 如果事务失败，所有操作都失败
+      return items.map(() => false)
+    }
+
+    return results
+  }
+
+  /**
+   * 批量获取缓存项（优化版本 - 使用事务）
+   * 
+   * @param keys - 要获取的键数组
+   * @returns 值数组（未找到的为 null）
+   */
+  async batchGet(keys: string[]): Promise<Array<string | null>> {
+    if (!this.available) {
+      return keys.map(() => null)
+    }
+
+    const results: Array<string | null> = []
+    const expiredKeys: string[] = []
+    const now = Date.now()
+
+    try {
+      const transaction = this.getTransaction('readonly')
+      const store = transaction.objectStore(this.storeName)
+
+      // 并行发起所有获取请求
+      const promises = keys.map(key => this.executeRequest(store.get(key)))
+      const items = await Promise.all(promises)
+
+      for (let i = 0; i < keys.length; i++) {
+        const item = items[i]
+
+        if (!item) {
+          results.push(null)
+          continue
+        }
+
+        // 检查是否过期
+        if (item.expiresAt && now > item.expiresAt) {
+          expiredKeys.push(keys[i])
+          results.push(null)
+          continue
+        }
+
+        results.push(item.value)
+      }
+
+      // 批量删除过期项
+      if (expiredKeys.length > 0) {
+        await this.batchRemove(expiredKeys)
+      }
+    }
+    catch (error) {
+      console.error('Batch get failed:', error)
+      return keys.map(() => null)
+    }
+
+    return results
+  }
+
+  /**
+   * 批量删除缓存项（优化版本 - 使用事务）
+   * 
+   * @param keys - 要删除的键数组
+   * @returns 删除结果数组
+   */
+  async batchRemove(keys: string[]): Promise<boolean[]> {
+    if (!this.available) {
+      return keys.map(() => false)
+    }
+
+    const results: boolean[] = []
+
+    try {
+      const transaction = this.getTransaction('readwrite')
+      const store = transaction.objectStore(this.storeName)
+
+      for (const key of keys) {
+        try {
+          store.delete(key)
+          results.push(true)
+        }
+        catch (error) {
+          console.error(`Failed to delete ${key}:`, error)
+          results.push(false)
+        }
+      }
+
+      // 等待事务完成
+      await new Promise<void>((resolve, reject) => {
+        transaction.oncomplete = () => resolve()
+        transaction.onerror = () => reject(transaction.error)
+      })
+
+      // 批量删除后一次性更新大小
+      await this.updateUsedSize()
+    }
+    catch (error) {
+      console.error('Batch remove transaction failed:', error)
+      return keys.map(() => false)
+    }
+
+    return results
+  }
+
+  /**
+   * 批量检查键是否存在（优化版本）
+   * 
+   * @param keys - 要检查的键数组
+   * @returns 存在性检查结果数组
+   */
+  async batchHas(keys: string[]): Promise<boolean[]> {
+    if (!this.available) {
+      return keys.map(() => false)
+    }
+
+    try {
+      const store = this.getStore('readonly')
+      const promises = keys.map(key =>
+        this.executeRequest(store.getKey(key))
+          .then(result => result !== undefined)
+          .catch(() => false)
+      )
+
+      return await Promise.all(promises)
+    }
+    catch (error) {
+      console.error('Batch has check failed:', error)
+      return keys.map(() => false)
+    }
   }
 }

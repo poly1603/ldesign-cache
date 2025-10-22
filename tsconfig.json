@@ -17,7 +17,7 @@
     "experimentalDecorators": true,
     "baseUrl": ".",
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node10",
     "paths": {
       "@/*": ["src/*"],
       "@tests/*": ["__tests__/*"],
@@ -30,7 +30,6 @@
       "@/types/*": ["src/types/*"]
     },
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": false,
     "strict": true,
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
@@ -47,6 +46,7 @@
     "downlevelIteration": true,
     "importHelpers": true,
     "noEmit": false,
+    "emitDeclarationOnly": false,
     "outDir": "./dist",
     "removeComments": true,
     "sourceMap": true,

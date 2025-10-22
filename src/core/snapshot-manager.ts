@@ -1,6 +1,8 @@
 import type { SerializableValue, StorageEngine } from '../types'
 
 import type { CacheManager } from './cache-manager'
+import { DeltaSync } from '../utils/delta-sync'
+import type { DeltaChange } from '../utils/delta-sync'
 
 /**
  * 快照数据结构
@@ -21,6 +23,12 @@ export interface CacheSnapshot {
     /** 自定义数据 */
     custom?: Record<string, any>
   }
+  /** 是否为增量快照 */
+  isDelta?: boolean
+  /** 基础快照 ID（增量快照时使用） */
+  baseSnapshotId?: string
+  /** Delta 变更（增量快照时使用） */
+  deltaChanges?: Record<string, DeltaChange[]>
 }
 
 /**
@@ -86,8 +94,10 @@ export interface RestoreOptions {
  */
 export class SnapshotManager {
   private static readonly SNAPSHOT_VERSION = '1.0.0'
+  private snapshots: Map<string, CacheSnapshot> = new Map()
+  private lastFullSnapshot?: CacheSnapshot
 
-  constructor(private cache: CacheManager) {}
+  constructor(private cache: CacheManager) { }
 
   /**
    * 创建快照
@@ -305,6 +315,235 @@ export class SnapshotManager {
       timestamp: snapshot.timestamp,
       age,
     }
+  }
+
+  /**
+   * 创建增量快照（基于上次快照的变更）
+   * 
+   * @param baseSnapshot - 基础快照
+   * @param options - 快照选项
+   * @returns 增量快照
+   */
+  async createDeltaSnapshot(
+    baseSnapshot: CacheSnapshot,
+    options: SnapshotOptions = {},
+  ): Promise<CacheSnapshot> {
+    const currentSnapshot = await this.create(options)
+
+    // 计算每个键的 Delta
+    const deltaChanges: Record<string, DeltaChange[]> = {}
+    let totalChanges = 0
+
+    for (const key of Object.keys(currentSnapshot.data)) {
+      const oldValue = baseSnapshot.data[key]
+      const newValue = currentSnapshot.data[key]
+
+      if (oldValue !== undefined) {
+        const delta = DeltaSync.diff(oldValue, newValue)
+        if (delta.hasChanges) {
+          deltaChanges[key] = delta.changes
+          totalChanges += delta.changeCount
+        }
+      }
+      else {
+        // 新增的键
+        deltaChanges[key] = [{
+          op: 'add',
+          path: '/',
+          newValue,
+        }]
+        totalChanges++
+      }
+    }
+
+    // 检查删除的键
+    for (const key of Object.keys(baseSnapshot.data)) {
+      if (!(key in currentSnapshot.data)) {
+        deltaChanges[key] = [{
+          op: 'delete',
+          path: '/',
+          oldValue: baseSnapshot.data[key],
+        }]
+        totalChanges++
+      }
+    }
+
+    // 生成快照 ID
+    const snapshotId = `delta-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+    return {
+      version: SnapshotManager.SNAPSHOT_VERSION,
+      timestamp: Date.now(),
+      data: {}, // Delta 快照不包含完整数据
+      isDelta: true,
+      baseSnapshotId: this.getSnapshotId(baseSnapshot),
+      deltaChanges,
+      metadata: {
+        name: options.name || 'Delta Snapshot',
+        description: options.description || `${totalChanges} changes from base`,
+        custom: {
+          ...options.metadata,
+          snapshotId,
+          totalChanges,
+        },
+      },
+    }
+  }
+
+  /**
+   * 恢复增量快照
+   * 
+   * @param deltaSnapshot - 增量快照
+   * @param baseSnapshot - 基础快照
+   * @param options - 恢复选项
+   */
+  async restoreDeltaSnapshot(
+    deltaSnapshot: CacheSnapshot,
+    baseSnapshot: CacheSnapshot,
+    options: RestoreOptions = {},
+  ): Promise<void> {
+    if (!deltaSnapshot.isDelta || !deltaSnapshot.deltaChanges) {
+      throw new Error('Not a delta snapshot')
+    }
+
+    // 先恢复基础快照
+    await this.restore(baseSnapshot, { ...options, clear: options.clear })
+
+    // 应用 Delta 变更
+    for (const [key, changes] of Object.entries(deltaSnapshot.deltaChanges)) {
+      try {
+        const currentValue = await this.cache.get(key)
+
+        if (changes.length === 1 && changes[0].op === 'delete') {
+          // 删除操作
+          await this.cache.remove(key)
+        }
+        else if (changes.length === 1 && changes[0].op === 'add') {
+          // 新增操作
+          await this.cache.set(key, changes[0].newValue)
+        }
+        else {
+          // 更新操作，应用 Delta
+          const patched = DeltaSync.patch(currentValue, changes)
+          await this.cache.set(key, patched)
+        }
+      }
+      catch (error) {
+        console.error(`Failed to apply delta for key ${key}:`, error)
+      }
+    }
+  }
+
+  /**
+   * 自动快照（定期创建快照）
+   * 
+   * @param options - 快照选项
+   * @param interval - 快照间隔（毫秒）
+   * @param useDelta - 是否使用增量快照
+   * @returns 停止函数
+   */
+  autoSnapshot(
+    options: SnapshotOptions = {},
+    interval: number = 60000,
+    useDelta: boolean = true,
+  ): () => void {
+    const timer = window.setInterval(async () => {
+      try {
+        let snapshot: CacheSnapshot
+
+        if (useDelta && this.lastFullSnapshot) {
+          // 创建增量快照
+          snapshot = await this.createDeltaSnapshot(this.lastFullSnapshot, options)
+
+          const snapshotId = this.getSnapshotId(snapshot)
+          this.snapshots.set(snapshotId, snapshot)
+
+          console.log(`✅ Delta snapshot created: ${snapshot.metadata?.custom?.totalChanges} changes`)
+        }
+        else {
+          // 创建完整快照
+          snapshot = await this.create(options)
+          this.lastFullSnapshot = snapshot
+
+          const snapshotId = this.getSnapshotId(snapshot)
+          this.snapshots.set(snapshotId, snapshot)
+
+          console.log(`✅ Full snapshot created: ${Object.keys(snapshot.data).length} keys`)
+        }
+
+        // 限制快照数量
+        if (this.snapshots.size > 10) {
+          const oldest = Array.from(this.snapshots.keys())[0]
+          this.snapshots.delete(oldest)
+        }
+      }
+      catch (error) {
+        console.error('Auto snapshot failed:', error)
+      }
+    }, interval)
+
+    return () => clearInterval(timer)
+  }
+
+  /**
+   * 获取快照 ID
+   */
+  private getSnapshotId(snapshot: CacheSnapshot): string {
+    return snapshot.metadata?.custom?.snapshotId || `snapshot-${snapshot.timestamp}`
+  }
+
+  /**
+   * 获取所有快照
+   */
+  getAllSnapshots(): CacheSnapshot[] {
+    return Array.from(this.snapshots.values())
+  }
+
+  /**
+   * 获取快照
+   */
+  getSnapshot(id: string): CacheSnapshot | undefined {
+    return this.snapshots.get(id)
+  }
+
+  /**
+   * 删除快照
+   */
+  deleteSnapshot(id: string): boolean {
+    return this.snapshots.delete(id)
+  }
+
+  /**
+   * 压缩快照历史（合并多个增量快照为完整快照）
+   */
+  async compressHistory(): Promise<void> {
+    const snapshots = this.getAllSnapshots()
+    const deltaSnapshots = snapshots.filter(s => s.isDelta)
+
+    if (deltaSnapshots.length < 3) {
+      return // 少于3个增量快照，不值得压缩
+    }
+
+    console.log(`Compressing ${deltaSnapshots.length} delta snapshots...`)
+
+    // 创建新的完整快照
+    const fullSnapshot = await this.create({
+      name: 'Compressed Snapshot',
+      description: `Compressed from ${deltaSnapshots.length} delta snapshots`,
+    })
+
+    // 清除旧的增量快照
+    for (const snapshot of deltaSnapshots) {
+      const id = this.getSnapshotId(snapshot)
+      this.snapshots.delete(id)
+    }
+
+    // 保存新的完整快照
+    this.lastFullSnapshot = fullSnapshot
+    const id = this.getSnapshotId(fullSnapshot)
+    this.snapshots.set(id, fullSnapshot)
+
+    console.log('✅ Snapshot history compressed')
   }
 }
 

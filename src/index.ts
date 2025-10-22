@@ -58,7 +58,23 @@ export type { CacheSnapshot, RestoreOptions, SnapshotOptions } from './core/snap
 // 跨标签页同步
 export { SyncManager } from './core/sync-manager'
 
-export type { SyncOptions } from './core/sync-manager'
+export type { ConflictResolutionStrategy, SyncData, SyncOptions } from './core/sync-manager'
+
+// 远程同步（跨设备）
+export {
+  RemoteSyncManager,
+  WebSocketTransport,
+  PollingTransport,
+  SSETransport
+} from './core/remote-sync-adapter'
+
+export type {
+  ConnectionState,
+  ITransport,
+  RemoteSyncMessage,
+  RemoteSyncOptions,
+  TransportType
+} from './core/remote-sync-adapter'
 // 标签管理
 export { createTagManager, TagManager } from './core/tag-manager'
 
@@ -69,6 +85,24 @@ export { createVersionManager, VersionManager } from './core/version-manager'
 export type { MigrationConfig, MigrationFunction, VersionConfig } from './core/version-manager'
 // 缓存预热
 export { createWarmupManager, WarmupManager } from './core/warmup-manager'
+
+// ============================================================================
+// 开发者工具导出
+// ============================================================================
+
+// 缓存检查器
+export { CacheInspector, createCacheInspector, installDevTools } from './devtools/inspector'
+
+export type { CacheItemDetail, EngineHealth, InspectorOptions } from './devtools/inspector'
+
+// 性能分析器
+export {
+  createPerformanceProfiler,
+  measurePerformance,
+  PerformanceProfiler
+} from './devtools/profiler'
+
+export type { PerformanceAnalysis, ProfilerOptions } from './devtools/profiler'
 
 // ============================================================================
 // 存储引擎导出

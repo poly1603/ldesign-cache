@@ -14,6 +14,9 @@ export * from './batch-helpers'
 // 数据压缩工具
 export * from './compressor'
 
+// Delta 同步工具
+export * from './delta-sync'
+
 // 错误处理工具
 export * from './error-handler'
 
@@ -22,6 +25,9 @@ export { EventEmitter } from './event-emitter'
 
 // 事件节流工具
 export * from './event-throttle'
+
+// LRU 缓存
+export * from './lru-cache'
 
 // 最小堆数据结构
 export * from './min-heap'

@@ -11,12 +11,13 @@ import type {
   SetOptions,
   StorageEngine,
 } from '../types'
-import type { MemoryManager} from './memory-manager';
-import type { PrefetchManager} from './prefetch-manager';
+import type { MemoryManager } from './memory-manager';
+import type { PrefetchManager } from './prefetch-manager';
 import { StorageEngineFactory } from '../engines/factory'
 import { SecurityManager } from '../security/security-manager'
 import { StorageStrategy } from '../strategies/storage-strategy'
 import { EventEmitter, Validator } from '../utils'
+import { LRUCache } from '../utils/lru-cache'
 import { createMemoryManager } from './memory-manager'
 import { createPrefetchManager } from './prefetch-manager'
 
@@ -39,25 +40,36 @@ export class CacheManager implements ICacheManager {
   private memoryManager: MemoryManager
   // 预取管理器
   private prefetchManager?: PrefetchManager
-  
-  // 优化：使用WeakMap避免内存泄漏
-  private serializationCache = new WeakMap<object, string>()
-  private stringSerializationCache = new Map<string, string>()
-  private readonly maxStringCacheSize = 500
-  private serializationCacheOrder = new Map<string, number>()
-  private serializationCacheCounter = 0
 
-  // 优化：事件节流，使用环形缓冲区
-  private eventThrottleRing: Array<{ key: string, time: number }> = []
-  private eventThrottleIndex = new Map<string, number>()
+  // 优化：使用 LRU 缓存代替简单 Map，支持 TTL 和自动淘汰
+  private serializationCache: LRUCache<string, string>
+
+  // 优化：键到引擎的映射缓存（智能路由）
+  private keyEngineMap: LRUCache<string, StorageEngine>
+
+  // 优化：事件节流，使用位图减少内存占用
+  private eventThrottleMap = new Map<string, number>()
   private readonly eventThrottleMs = 100
-  private readonly maxEventThrottleSize = 200
 
   constructor(private options: CacheOptions = {}) {
     this.strategy = new StorageStrategy(options.strategy)
     this.security = new SecurityManager(options.security)
     this.eventEmitter = new EventEmitter()
-    
+
+    // 初始化序列化缓存（LRU + TTL）
+    this.serializationCache = new LRUCache({
+      maxSize: 500,
+      defaultTTL: 5000, // 5秒 TTL，自动清理不常用的序列化结果
+      autoCleanup: true,
+    })
+
+    // 初始化键引擎映射缓存（智能路由）
+    this.keyEngineMap = new LRUCache({
+      maxSize: 1000,
+      defaultTTL: 60000, // 60秒 TTL
+      autoCleanup: true,
+    })
+
     // 初始化内存管理器
     this.memoryManager = createMemoryManager({
       maxMemory: options.maxMemory || 100 * 1024 * 1024,
@@ -65,7 +77,7 @@ export class CacheManager implements ICacheManager {
       criticalPressureThreshold: 0.95,
       autoCleanupInterval: options.cleanupInterval || 60000
     })
-    
+
     // 监听内存压力
     this.memoryManager.onPressure((level) => {
       if (level === 'critical') {
@@ -74,7 +86,7 @@ export class CacheManager implements ICacheManager {
         this.cleanup().catch(console.error)
       }
     })
-    
+
     // 初始化预取管理器（如果启用）
     if (options.enablePrefetch) {
       this.prefetchManager = createPrefetchManager({
@@ -188,7 +200,7 @@ export class CacheManager implements ICacheManager {
 
       // 调试输出策略选择结果
       if (this.options.debug) {
-         
+
         console.info(`[CacheManager] Strategy selected engine: ${result.engine}`)
       }
 
@@ -280,37 +292,43 @@ export class CacheManager implements ICacheManager {
     options?: SetOptions,
   ): Promise<string> {
     try {
-      // 性能优化：对于简单值，使用缓存
+      // 性能优化：对于简单值，使用 LRU 缓存
       const needsEncryption = options?.encrypt || this.options.security?.encryption?.enabled
       const cacheKey = needsEncryption ? null : this.createSerializationCacheKey(value)
 
-      // 对于简单类型使用字符串缓存
-      if (cacheKey !== null && this.stringSerializationCache.has(cacheKey)) {
-        // 更新访问顺序
-        this.serializationCacheOrder.set(cacheKey, this.serializationCacheCounter++)
-        const cached = this.stringSerializationCache.get(cacheKey)
+      // 检查 LRU 缓存
+      if (cacheKey !== null) {
+        const cached = this.serializationCache.get(cacheKey)
         if (cached !== undefined) {
           return cached
         }
       }
 
-      // 检查循环引用
+      // 快速路径：简单类型直接转换，避免 JSON.stringify 开销
       let serialized: string
-
-      try {
-        serialized = JSON.stringify(value)
+      if (typeof value === 'string') {
+        serialized = value
       }
-      catch (error) {
-        if (error instanceof Error && error.message.includes('circular')) {
-          // 处理循环引用：创建一个简化的版本
-          const simplifiedValue = this.removeCircularReferences(value)
-          serialized = JSON.stringify(simplifiedValue)
-
-          // 记录警告但不阻止操作
-          console.warn('Circular reference detected in cache value, using simplified version:', error.message)
+      else if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
+        serialized = String(value)
+      }
+      else {
+        // 复杂类型使用 JSON.stringify
+        try {
+          serialized = JSON.stringify(value)
         }
-        else {
-          throw new Error(`JSON serialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        catch (error) {
+          if (error instanceof Error && error.message.includes('circular')) {
+            // 处理循环引用：创建一个简化的版本
+            const simplifiedValue = this.removeCircularReferences(value)
+            serialized = JSON.stringify(simplifiedValue)
+
+            // 记录警告但不阻止操作
+            console.warn('Circular reference detected in cache value, using simplified version:', error.message)
+          }
+          else {
+            throw new Error(`JSON serialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+          }
         }
       }
 
@@ -324,8 +342,8 @@ export class CacheManager implements ICacheManager {
         }
       }
       else if (cacheKey !== null) {
-        // 缓存未加密的序列化结果
-        this.cacheSerializationResult(cacheKey, serialized)
+        // 缓存未加密的序列化结果到 LRU（自动 TTL 和淘汰）
+        this.serializationCache.set(cacheKey, serialized)
       }
 
       return serialized
@@ -354,21 +372,6 @@ export class CacheManager implements ICacheManager {
     catch {
       return null
     }
-  }
-
-  /**
-   * 缓存序列化结果（优化版）
-   */
-  private cacheSerializationResult(key: string, result: string): void {
-    // 限制字符串缓存大小
-    if (this.stringSerializationCache.size >= this.maxStringCacheSize) {
-      // 简单FIFO淘汰第一个
-      const firstKey = this.stringSerializationCache.keys().next().value
-      if (firstKey !== undefined) {
-        this.stringSerializationCache.delete(firstKey)
-      }
-    }
-    this.stringSerializationCache.set(key, result)
   }
 
   /**
@@ -524,7 +527,7 @@ export class CacheManager implements ICacheManager {
   }
 
   /**
-   * 触发事件（优化版）
+   * 触发事件（优化版 - 使用简化的节流策略）
    */
   private emitEvent<T>(
     type: CacheEventType,
@@ -533,35 +536,28 @@ export class CacheManager implements ICacheManager {
     value?: T,
     error?: Error,
   ): void {
-    // 对高频事件进行节流
-    const eventKey = `${type}:${key}:${engine}`
-    const now = Date.now()
-    
-    // 检查节流
-    const index = this.eventThrottleIndex.get(eventKey)
-    if (index !== undefined && type !== 'error') {
-      const entry = this.eventThrottleRing[index]
-      if (entry && now - entry.time < this.eventThrottleMs) {
-        return
-      }
-    }
+    // 对高频事件进行节流（错误事件总是触发）
+    if (type !== 'error') {
+      const eventKey = `${type}:${key}:${engine}`
+      const now = Date.now()
+      const lastTime = this.eventThrottleMap.get(eventKey)
 
-    // 更新或添加到环形缓冲区
-    if (this.eventThrottleRing.length >= this.maxEventThrottleSize) {
-      // 覆盖最旧的条目
-      const oldestIndex = 0
-      const oldEntry = this.eventThrottleRing[oldestIndex]
-      if (oldEntry) {
-        this.eventThrottleIndex.delete(oldEntry.key)
+      if (lastTime !== undefined && now - lastTime < this.eventThrottleMs) {
+        return // 节流，跳过此事件
       }
-      this.eventThrottleRing[oldestIndex] = { key: eventKey, time: now }
-      this.eventThrottleIndex.set(eventKey, oldestIndex)
-      // 旋转数组
-      this.eventThrottleRing.push(this.eventThrottleRing.shift()!)
-    } else {
-      const newIndex = this.eventThrottleRing.length
-      this.eventThrottleRing.push({ key: eventKey, time: now })
-      this.eventThrottleIndex.set(eventKey, newIndex)
+
+      // 更新时间戳
+      this.eventThrottleMap.set(eventKey, now)
+
+      // 定期清理过期的节流记录（每1000个事件清理一次）
+      if (this.eventThrottleMap.size > 1000) {
+        const threshold = now - this.eventThrottleMs * 10
+        for (const [k, t] of this.eventThrottleMap.entries()) {
+          if (t < threshold) {
+            this.eventThrottleMap.delete(k)
+          }
+        }
+      }
     }
 
     const event: CacheEvent<T> = {
@@ -569,7 +565,7 @@ export class CacheManager implements ICacheManager {
       key,
       value,
       engine,
-      timestamp: now,
+      timestamp: Date.now(),
       error,
     }
 
@@ -656,6 +652,9 @@ export class CacheManager implements ICacheManager {
 
       await engine.setItem(processedKey, itemData, options?.ttl)
 
+      // 优化：更新键引擎映射缓存（智能路由）
+      this.keyEngineMap.set(key, engine.name, options?.ttl)
+
       this.emitEvent('set', key, engine.name, value)
     }
     catch (error) {
@@ -696,7 +695,30 @@ export class CacheManager implements ICacheManager {
     // 处理缓存键（可能包含混淆处理）
     const processedKey = await this.processKey(key)
 
-    // 按优先级顺序尝试从各个存储引擎获取数据（优化检索性能）
+    // 优化：智能路由 - 先检查键引擎映射缓存
+    const cachedEngine = this.keyEngineMap.get(key)
+    if (cachedEngine) {
+      const engine = this.engines.get(cachedEngine)
+      if (engine) {
+        try {
+          const itemData = await engine.getItem(processedKey)
+          if (typeof itemData === 'string' && itemData.length > 0) {
+            const result = await this.processGetResult<T>(key, itemData, cachedEngine, processedKey)
+            if (result !== null) {
+              return result
+            }
+            // 如果失败，从映射中移除并继续搜索
+            this.keyEngineMap.delete(key)
+          }
+        }
+        catch (error) {
+          // 映射失效，移除并继续搜索
+          this.keyEngineMap.delete(key)
+        }
+      }
+    }
+
+    // 按优先级顺序尝试从各个存储引擎获取数据
     // 优先级：memory > localStorage > sessionStorage > cookie > indexedDB
     const searchOrder: StorageEngine[] = [
       'memory',
@@ -716,53 +738,12 @@ export class CacheManager implements ICacheManager {
         // 从当前引擎获取原始数据
         const itemData = await engine.getItem(processedKey)
         if (typeof itemData === 'string' && itemData.length > 0) {
-          // 解析存储的数据结构 { value, metadata }
-          const { value, metadata } = JSON.parse(itemData)
-
-          // 检查缓存项是否已过期
-          if (typeof metadata.expiresAt === 'number' && Date.now() > metadata.expiresAt) {
-            // 过期则从当前引擎中移除
-            await engine.removeItem(processedKey)
-            // 发出过期事件
-            this.emitEvent('expired', key, engineType)
-            continue // 继续尝试下一个引擎
+          const result = await this.processGetResult<T>(key, itemData, engineType, processedKey)
+          if (result !== null) {
+            // 更新键引擎映射缓存
+            this.keyEngineMap.set(key, engineType)
+            return result
           }
-
-          // 更新访问统计信息（仅内存，避免频繁写回存储）
-          metadata.lastAccessedAt = Date.now()
-          metadata.accessCount++
-
-          // 更新引擎命中统计
-          const stats = this.stats.get(engineType)
-          if (stats) {
-            stats.hits++
-          }
-
-          // 反序列化缓存值（处理加密数据）
-          const deserializedValue = await this.deserializeValue<T>(
-            value,
-            metadata.encrypted,
-          )
-
-          // 读穿缓存：非内存命中则回填到内存引擎，提升后续读取性能
-          if (engineType !== 'memory') {
-            const memoryEngine = this.engines.get('memory')
-            if (memoryEngine) {
-              try {
-                const ttlRemaining = typeof metadata.expiresAt === 'number'
-                  ? Math.max(0, metadata.expiresAt - Date.now())
-                  : undefined
-                await memoryEngine.setItem(processedKey, itemData, ttlRemaining)
-              }
-              catch (e) {
-                console.warn('[CacheManager] Failed to promote item to memory:', e)
-              }
-            }
-          }
-
-          // 发出获取成功事件
-          this.emitEvent('get', key, engineType, deserializedValue)
-          return deserializedValue
         }
       }
       catch (error) {
@@ -780,6 +761,73 @@ export class CacheManager implements ICacheManager {
     }
 
     return null
+  }
+
+  /**
+   * 处理 get 操作的结果（提取公共逻辑）
+   */
+  private async processGetResult<T>(
+    key: string,
+    itemData: string,
+    engineType: StorageEngine,
+    processedKey: string,
+  ): Promise<T | null> {
+    try {
+      // 解析存储的数据结构 { value, metadata }
+      const { value, metadata } = JSON.parse(itemData)
+
+      // 检查缓存项是否已过期
+      if (typeof metadata.expiresAt === 'number' && Date.now() > metadata.expiresAt) {
+        // 过期则从当前引擎中移除
+        const engine = this.engines.get(engineType)
+        if (engine) {
+          await engine.removeItem(processedKey)
+        }
+        // 发出过期事件
+        this.emitEvent('expired', key, engineType)
+        return null
+      }
+
+      // 更新访问统计信息（仅内存，避免频繁写回存储）
+      metadata.lastAccessedAt = Date.now()
+      metadata.accessCount++
+
+      // 更新引擎命中统计
+      const stats = this.stats.get(engineType)
+      if (stats) {
+        stats.hits++
+      }
+
+      // 反序列化缓存值（处理加密数据）
+      const deserializedValue = await this.deserializeValue<T>(
+        value,
+        metadata.encrypted,
+      )
+
+      // 读穿缓存：非内存命中则回填到内存引擎，提升后续读取性能
+      if (engineType !== 'memory') {
+        const memoryEngine = this.engines.get('memory')
+        if (memoryEngine) {
+          try {
+            const ttlRemaining = typeof metadata.expiresAt === 'number'
+              ? Math.max(0, metadata.expiresAt - Date.now())
+              : undefined
+            await memoryEngine.setItem(processedKey, itemData, ttlRemaining)
+          }
+          catch (e) {
+            console.warn('[CacheManager] Failed to promote item to memory:', e)
+          }
+        }
+      }
+
+      // 发出获取成功事件
+      this.emitEvent('get', key, engineType, deserializedValue)
+      return deserializedValue
+    }
+    catch (error) {
+      console.warn(`Error processing get result for ${key}:`, error)
+      return null
+    }
   }
 
   /**
@@ -897,34 +945,62 @@ export class CacheManager implements ICacheManager {
         return
       }
 
-      // 批量处理同一引擎的项目
-      const groupResults = await Promise.allSettled(
-        group.map(async (item) => {
-          try {
-            const processedKey = await this.processKey(item.key)
-            const serializedValue = await this.serializeValue(item.value, item.options || options)
-            const metadata = this.createMetadata(item.value, engineType, item.options || options)
+      // 优化：使用引擎的批量 API（如果支持）
+      if (typeof (engine as any).batchSet === 'function') {
+        try {
+          // 预处理所有项目
+          const batchItems = await Promise.all(
+            group.map(async (item) => {
+              const processedKey = await this.processKey(item.key)
+              const serializedValue = await this.serializeValue(item.value, item.options || options)
+              const metadata = this.createMetadata(item.value, engineType, item.options || options)
 
-            const itemData = JSON.stringify({
-              value: serializedValue,
-              metadata,
-            })
+              const itemData = JSON.stringify({
+                value: serializedValue,
+                metadata,
+              })
 
-            await engine.setItem(processedKey, itemData, (item.options || options)?.ttl)
-            this.emitEvent('set', item.key, engineType, item.value)
-            return { success: true, key: item.key }
-          }
-          catch (error) {
-            this.emitEvent('error', item.key, engineType, item.value, error as Error)
-            return { success: false, key: item.key, error: error as Error }
-          }
-        }),
-      )
+              return {
+                key: processedKey,
+                value: itemData,
+                ttl: (item.options || options)?.ttl,
+              }
+            }),
+          )
 
-      // 将结果放回原始位置
-      group.forEach((item, groupIndex) => {
-        allResults[item.index] = groupResults[groupIndex]
-      })
+          // 调用引擎的批量设置方法
+          const batchResults = await (engine as any).batchSet(batchItems)
+
+          // 处理结果
+          group.forEach((item, groupIndex) => {
+            const success = batchResults[groupIndex]
+            if (success) {
+              this.emitEvent('set', item.key, engineType, item.value)
+              // 更新键引擎映射
+              this.keyEngineMap.set(item.key, engineType, (item.options || options)?.ttl)
+              allResults[item.index] = {
+                status: 'fulfilled',
+                value: { success: true, key: item.key },
+              } as any
+            }
+            else {
+              allResults[item.index] = {
+                status: 'fulfilled',
+                value: { success: false, key: item.key, error: new Error('Batch set failed') },
+              } as any
+            }
+          })
+        }
+        catch (error) {
+          // 批量操作失败，回退到逐个设置
+          console.warn(`Batch set failed for ${engineType}, falling back to individual sets`)
+          await this.fallbackIndividualSets(engine, engineType, group, allResults, options)
+        }
+      }
+      else {
+        // 引擎不支持批量操作，逐个设置
+        await this.fallbackIndividualSets(engine, engineType, group, allResults, options)
+      }
     })
 
     await Promise.all(enginePromises)
@@ -967,6 +1043,47 @@ export class CacheManager implements ICacheManager {
   }
 
   /**
+   * 回退到逐个设置（当批量 API 不可用或失败时）
+   */
+  private async fallbackIndividualSets<T extends SerializableValue>(
+    engine: IStorageEngine,
+    engineType: StorageEngine,
+    group: Array<{ key: string, value: T, options?: SetOptions, index: number }>,
+    allResults: Array<PromiseSettledResult<{ success: boolean, key: string, error?: Error }> | undefined>,
+    globalOptions?: SetOptions,
+  ): Promise<void> {
+    const groupResults = await Promise.allSettled(
+      group.map(async (item) => {
+        try {
+          const processedKey = await this.processKey(item.key)
+          const serializedValue = await this.serializeValue(item.value, item.options || globalOptions)
+          const metadata = this.createMetadata(item.value, engineType, item.options || globalOptions)
+
+          const itemData = JSON.stringify({
+            value: serializedValue,
+            metadata,
+          })
+
+          await engine.setItem(processedKey, itemData, (item.options || globalOptions)?.ttl)
+          this.emitEvent('set', item.key, engineType, item.value)
+          // 更新键引擎映射
+          this.keyEngineMap.set(item.key, engineType, (item.options || globalOptions)?.ttl)
+          return { success: true, key: item.key }
+        }
+        catch (error) {
+          this.emitEvent('error', item.key, engineType, item.value, error as Error)
+          return { success: false, key: item.key, error: error as Error }
+        }
+      }),
+    )
+
+    // 将结果放回原始位置
+    group.forEach((item, groupIndex) => {
+      allResults[item.index] = groupResults[groupIndex]
+    })
+  }
+
+  /**
    * 批量获取缓存项
    *
    * 并行获取多个缓存项，提高效率
@@ -1000,70 +1117,73 @@ export class CacheManager implements ICacheManager {
     for (const [engineType, engine] of this.engines) {
       if (remainingIndices.size === 0) { break }
 
-      const engineResults = await Promise.allSettled(
-        Array.from(remainingIndices).map(async (index) => {
-          try {
-            const processedKey = processedKeys[index]
-            const itemData = await engine.getItem(processedKey)
+      // 优化：使用引擎的批量 API（如果支持）
+      if (typeof (engine as any).batchGet === 'function') {
+        try {
+          const remainingKeys = Array.from(remainingIndices).map(idx => processedKeys[idx])
+          const batchResults = await (engine as any).batchGet(remainingKeys)
 
-            if (itemData) {
-              const { value, metadata } = JSON.parse(itemData)
+          // 处理批量结果
+          const indicesToProcess = Array.from(remainingIndices)
+          for (let i = 0; i < batchResults.length; i++) {
+            const index = indicesToProcess[i]
+            const itemData = batchResults[i]
 
-              // 检查过期
-              if (typeof metadata.expiresAt === 'number' && Date.now() > metadata.expiresAt) {
-                await engine.removeItem(processedKey)
-                this.emitEvent('expired', keys[index], engineType)
-                return null
-              }
+            if (itemData && typeof itemData === 'string') {
+              try {
+                const { value, metadata } = JSON.parse(itemData)
 
-              // 更新统计
-              const stats = this.stats.get(engineType)
-              if (stats) {
-                stats.hits++
-              }
+                // 检查过期
+                if (typeof metadata.expiresAt === 'number' && Date.now() > metadata.expiresAt) {
+                  this.emitEvent('expired', keys[index], engineType)
+                  continue
+                }
 
-              // 反序列化
-              const deserializedValue = await this.deserializeValue<T>(
-                value,
-                metadata.encrypted,
-              )
+                // 更新统计
+                const stats = this.stats.get(engineType)
+                if (stats) {
+                  stats.hits++
+                }
 
-              // 读穿缓存：非内存命中则回填到内存引擎
-              if (engineType !== 'memory') {
-                const memoryEngine = this.engines.get('memory')
-                if (memoryEngine) {
-                  try {
-                    const ttlRemaining = typeof metadata.expiresAt === 'number'
-                      ? Math.max(0, metadata.expiresAt - Date.now())
-                      : undefined
-                    await memoryEngine.setItem(processedKey, itemData, ttlRemaining)
-                  }
-                  catch (e) {
-                    console.warn('[CacheManager] Failed to promote item to memory:', e)
+                // 反序列化
+                const deserializedValue = await this.deserializeValue<T>(value, metadata.encrypted)
+
+                // 读穿缓存
+                if (engineType !== 'memory') {
+                  const memoryEngine = this.engines.get('memory')
+                  if (memoryEngine) {
+                    try {
+                      const ttlRemaining = typeof metadata.expiresAt === 'number'
+                        ? Math.max(0, metadata.expiresAt - Date.now())
+                        : undefined
+                      await memoryEngine.setItem(processedKeys[index], itemData, ttlRemaining)
+                    }
+                    catch (e) {
+                      console.warn('[CacheManager] Failed to promote item to memory:', e)
+                    }
                   }
                 }
+
+                this.emitEvent('get', keys[index], engineType, deserializedValue)
+                results[index] = deserializedValue
+                remainingIndices.delete(index)
               }
-
-              this.emitEvent('get', keys[index], engineType, deserializedValue)
-              return deserializedValue
+              catch (error) {
+                console.warn(`Error processing batch result for ${keys[index]}:`, error)
+              }
             }
-            return null
           }
-          catch (error) {
-            console.warn(`Error getting ${keys[index]} from ${engineType}:`, error)
-            return null
-          }
-        }),
-      )
-
-      // 处理结果并移除已找到的键
-      Array.from(remainingIndices).forEach((index, resultIndex) => {
-        const result = engineResults[resultIndex]
-        if (result.status === 'fulfilled' && result.value !== null) {
-          results[index] = result.value
-          remainingIndices.delete(index)
         }
-      })
+        catch (error) {
+          console.warn(`Batch get failed for ${engineType}, falling back to individual gets`)
+          // 回退到逐个获取
+          await this.fallbackIndividualGets<T>(engine, engineType, keys, processedKeys, remainingIndices, results)
+        }
+      }
+      else {
+        // 引擎不支持批量操作，逐个获取
+        await this.fallbackIndividualGets<T>(engine, engineType, keys, processedKeys, remainingIndices, results)
+      }
     }
 
     // 更新未命中统计
@@ -1084,6 +1204,83 @@ export class CacheManager implements ICacheManager {
     return Object.fromEntries(
       keys.map((key, index) => [key, results[index]]),
     ) as Record<string, T | null>
+  }
+
+  /**
+   * 回退到逐个获取（当批量 API 不可用或失败时）
+   */
+  private async fallbackIndividualGets<T extends SerializableValue>(
+    engine: IStorageEngine,
+    engineType: StorageEngine,
+    keys: string[],
+    processedKeys: string[],
+    remainingIndices: Set<number>,
+    results: Array<T | null>,
+  ): Promise<void> {
+    const engineResults = await Promise.allSettled(
+      Array.from(remainingIndices).map(async (index) => {
+        try {
+          const processedKey = processedKeys[index]
+          const itemData = await engine.getItem(processedKey)
+
+          if (itemData) {
+            const { value, metadata } = JSON.parse(itemData)
+
+            // 检查过期
+            if (typeof metadata.expiresAt === 'number' && Date.now() > metadata.expiresAt) {
+              await engine.removeItem(processedKey)
+              this.emitEvent('expired', keys[index], engineType)
+              return null
+            }
+
+            // 更新统计
+            const stats = this.stats.get(engineType)
+            if (stats) {
+              stats.hits++
+            }
+
+            // 反序列化
+            const deserializedValue = await this.deserializeValue<T>(
+              value,
+              metadata.encrypted,
+            )
+
+            // 读穿缓存
+            if (engineType !== 'memory') {
+              const memoryEngine = this.engines.get('memory')
+              if (memoryEngine) {
+                try {
+                  const ttlRemaining = typeof metadata.expiresAt === 'number'
+                    ? Math.max(0, metadata.expiresAt - Date.now())
+                    : undefined
+                  await memoryEngine.setItem(processedKey, itemData, ttlRemaining)
+                }
+                catch (e) {
+                  console.warn('[CacheManager] Failed to promote item to memory:', e)
+                }
+              }
+            }
+
+            this.emitEvent('get', keys[index], engineType, deserializedValue)
+            return deserializedValue
+          }
+          return null
+        }
+        catch (error) {
+          console.warn(`Error getting ${keys[index]} from ${engineType}:`, error)
+          return null
+        }
+      }),
+    )
+
+    // 处理结果并移除已找到的键
+    Array.from(remainingIndices).forEach((index, resultIndex) => {
+      const result = engineResults[resultIndex]
+      if (result.status === 'fulfilled' && result.value !== null) {
+        results[index] = result.value
+        remainingIndices.delete(index)
+      }
+    })
   }
 
   /**
@@ -1182,6 +1379,9 @@ export class CacheManager implements ICacheManager {
 
     // 处理缓存键（可能包含混淆处理）
     const processedKey = await this.processKey(key)
+
+    // 优化：清除键引擎映射缓存
+    this.keyEngineMap.delete(key)
 
     // 从所有存储引擎中删除该键
     // 即使某个引擎删除失败，也要继续删除其他引擎中的数据
@@ -1367,36 +1567,26 @@ export class CacheManager implements ICacheManager {
     this.stats.clear()
 
     // 清理性能优化相关的缓存
-    // WeakMap doesn't have clear method, recreate it
-    this.serializationCache = new WeakMap()
-    this.stringSerializationCache.clear()
-    this.eventThrottleIndex.clear()
-    this.eventThrottleRing = []
+    this.serializationCache.clear()
+    this.keyEngineMap.clear()
+    this.eventThrottleMap.clear()
   }
 
   /**
    * 性能优化：手动触发内存清理
    */
   async optimizeMemory(): Promise<void> {
-    // 清理字符串序列化缓存
-    if (this.stringSerializationCache.size > this.maxStringCacheSize / 2) {
-      const keysToDelete: string[] = []
-      let count = 0
-      for (const key of this.stringSerializationCache.keys()) {
-        if (count++ >= this.maxStringCacheSize / 4) break
-        keysToDelete.push(key)
-      }
-      keysToDelete.forEach(key => this.stringSerializationCache.delete(key))
-    }
+    // 清理 LRU 缓存中的过期项
+    this.serializationCache.cleanup()
+    this.keyEngineMap.cleanup()
 
-    // 清理事件节流环形缓冲区
-    if (this.eventThrottleRing.length > this.maxEventThrottleSize / 2) {
-      const halfSize = Math.floor(this.maxEventThrottleSize / 2)
-      this.eventThrottleRing = this.eventThrottleRing.slice(-halfSize)
-      this.eventThrottleIndex.clear()
-      this.eventThrottleRing.forEach((entry, index) => {
-        this.eventThrottleIndex.set(entry.key, index)
-      })
+    // 清理事件节流映射（移除过期条目）
+    const now = Date.now()
+    const threshold = now - this.eventThrottleMs * 10
+    for (const [key, time] of this.eventThrottleMap.entries()) {
+      if (time < threshold) {
+        this.eventThrottleMap.delete(key)
+      }
     }
 
     // 触发内存管理器清理
@@ -1413,18 +1603,18 @@ export class CacheManager implements ICacheManager {
       }
     }
   }
-  
+
   /**
    * 紧急内存清理
    */
   private async performEmergencyCleanup(): Promise<void> {
     console.warn('[CacheManager] Emergency cleanup triggered')
-    
+
     // 清空所有缓存
-    this.stringSerializationCache.clear()
-    this.eventThrottleRing = []
-    this.eventThrottleIndex.clear()
-    
+    this.serializationCache.clear()
+    this.keyEngineMap.clear()
+    this.eventThrottleMap.clear()
+
     // 触发各引擎清理
     for (const [, engine] of this.engines) {
       if (typeof (engine as any).cleanup === 'function') {

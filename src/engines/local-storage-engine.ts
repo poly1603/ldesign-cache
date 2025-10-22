@@ -194,4 +194,134 @@ export class LocalStorageEngine extends BaseStorageEngine {
   getUsageRatio(): number {
     return this._usedSize / this.maxSize
   }
+
+  /**
+   * 批量设置缓存项（优化版本）
+   * 
+   * @param items - 要设置的键值对数组
+   * @returns 设置结果数组
+   */
+  async batchSet(items: Array<{ key: string, value: string, ttl?: number }>): Promise<boolean[]> {
+    if (!this.available) {
+      return items.map(() => false)
+    }
+
+    const results: boolean[] = []
+
+    // 批量写入，使用单次 usedSize 更新
+    for (const { key, value, ttl } of items) {
+      try {
+        const fullKey = this.getFullKey(key)
+        const data = this.createTTLData(value, ttl)
+
+        window.localStorage.setItem(fullKey, data)
+        results.push(true)
+      }
+      catch (error) {
+        console.error(`Failed to set ${key}:`, error)
+        results.push(false)
+      }
+    }
+
+    // 批量操作后一次性更新大小
+    await this.updateUsedSize()
+
+    return results
+  }
+
+  /**
+   * 批量获取缓存项（优化版本）
+   * 
+   * @param keys - 要获取的键数组
+   * @returns 值数组（未找到的为 null）
+   */
+  async batchGet(keys: string[]): Promise<Array<string | null>> {
+    if (!this.available) {
+      return keys.map(() => null)
+    }
+
+    const results: Array<string | null> = []
+    const expiredKeys: string[] = []
+
+    for (const key of keys) {
+      try {
+        const fullKey = this.getFullKey(key)
+        const data = window.localStorage.getItem(fullKey)
+
+        if (!data) {
+          results.push(null)
+          continue
+        }
+
+        const { value, expired } = this.parseTTLData(data)
+
+        if (expired) {
+          expiredKeys.push(key)
+          results.push(null)
+          continue
+        }
+
+        results.push(value)
+      }
+      catch (error) {
+        console.error(`Failed to get ${key}:`, error)
+        results.push(null)
+      }
+    }
+
+    // 批量删除过期项
+    if (expiredKeys.length > 0) {
+      await Promise.all(expiredKeys.map(key => this.removeItem(key)))
+    }
+
+    return results
+  }
+
+  /**
+   * 批量删除缓存项（优化版本）
+   * 
+   * @param keys - 要删除的键数组
+   * @returns 删除结果数组
+   */
+  async batchRemove(keys: string[]): Promise<boolean[]> {
+    if (!this.available) {
+      return keys.map(() => false)
+    }
+
+    const results: boolean[] = []
+
+    for (const key of keys) {
+      try {
+        const fullKey = this.getFullKey(key)
+        window.localStorage.removeItem(fullKey)
+        results.push(true)
+      }
+      catch (error) {
+        console.error(`Failed to remove ${key}:`, error)
+        results.push(false)
+      }
+    }
+
+    // 批量删除后一次性更新大小
+    await this.updateUsedSize()
+
+    return results
+  }
+
+  /**
+   * 批量检查键是否存在（优化版本）
+   * 
+   * @param keys - 要检查的键数组
+   * @returns 存在性检查结果数组
+   */
+  async batchHas(keys: string[]): Promise<boolean[]> {
+    if (!this.available) {
+      return keys.map(() => false)
+    }
+
+    return keys.map((key) => {
+      const fullKey = this.getFullKey(key)
+      return window.localStorage.getItem(fullKey) !== null
+    })
+  }
 }
