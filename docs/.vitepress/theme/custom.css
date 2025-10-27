@@ -1,0 +1,116 @@
+/**
+ * 自定义样式
+ */
+
+:root {
+  --vp-c-brand: #3c8772;
+  --vp-c-brand-light: #4d9f87;
+  --vp-c-brand-lighter: #5eb79b;
+  --vp-c-brand-dark: #2a6b55;
+  --vp-c-brand-darker: #1e4f3f;
+}
+
+.dark {
+  --vp-c-brand: #4d9f87;
+  --vp-c-brand-light: #5eb79b;
+  --vp-c-brand-lighter: #6fcfaf;
+  --vp-c-brand-dark: #3c8772;
+  --vp-c-brand-darker: #2a6b55;
+}
+
+/**
+ * 代码块样式
+ */
+.vp-code-group {
+  margin: 16px 0;
+}
+
+/**
+ * 表格样式
+ */
+.vp-doc table {
+  display: block;
+  overflow-x: auto;
+}
+
+/**
+ * 警告框样式
+ */
+.custom-block {
+  margin: 16px 0;
+}
+
+/**
+ * 导航链接悬停效果
+ */
+.VPNavBarMenuLink:hover,
+.VPSidebarLink:hover {
+  color: var(--vp-c-brand);
+}
+
+/**
+ * 首页 hero 按钮样式
+ */
+.VPButton.brand {
+  border-color: var(--vp-c-brand);
+  background-color: var(--vp-c-brand);
+}
+
+.VPButton.brand:hover {
+  border-color: var(--vp-c-brand-dark);
+  background-color: var(--vp-c-brand-dark);
+}
+
+.VPButton.alt {
+  border-color: var(--vp-c-brand);
+  color: var(--vp-c-brand);
+}
+
+.VPButton.alt:hover {
+  border-color: var(--vp-c-brand-dark);
+  color: var(--vp-c-brand-dark);
+}
+
+/**
+ * 功能卡片样式
+ */
+.vp-doc .feature-card {
+  padding: 20px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+}
+
+.vp-doc .feature-card:hover {
+  border-color: var(--vp-c-brand);
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+/**
+ * 徽章样式
+ */
+.vp-doc .badge {
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 12px;
+  vertical-align: middle;
+}
+
+.vp-doc .badge.tip {
+  background-color: var(--vp-c-brand-lighter);
+  color: white;
+}
+
+.vp-doc .badge.warning {
+  background-color: #f59e0b;
+  color: white;
+}
+
+.vp-doc .badge.danger {
+  background-color: #ef4444;
+  color: white;
+}
