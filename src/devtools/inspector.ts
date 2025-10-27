@@ -432,56 +432,141 @@ export function installDevTools(cache: CacheManager): void {
     refreshInterval: 5000,
   })
 
-    // 挂载到 window
-    ; (window as any).__CACHE_DEVTOOLS__ = {
-      inspector,
+  // 动态导入高级检查器
+  let advancedInspector: any = null
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { AdvancedCacheInspector } = require('./advanced-inspector')
+    advancedInspector = new AdvancedCacheInspector(cache)
+  }
+  catch {
+    // 高级检查器不可用，仅使用基础功能
+  }
 
-      // 快捷方法
-      async stats() {
-        return cache.getStats()
-      },
+  // 挂载到 window
+  ; (window as any).__CACHE_DEVTOOLS__ = {
+    inspector,
+    advancedInspector,
 
-      async items() {
-        return inspector.getAllItems()
-      },
+    // 基础快捷方法
+    async stats() {
+      return cache.getStats()
+    },
 
-      async search(pattern: string) {
-        return inspector.searchItems(pattern)
-      },
+    async items() {
+      return inspector.getAllItems()
+    },
 
-      async health() {
-        return inspector.getEngineHealth()
-      },
+    async search(pattern: string) {
+      return inspector.searchItems(pattern)
+    },
 
-      async report() {
-        const report = await inspector.generateHealthReport()
-        console.log(report)
-        return report
-      },
+    async health() {
+      return inspector.getEngineHealth()
+    },
 
-      async hotKeys(limit = 10) {
-        return inspector.getHotKeys(limit)
-      },
+    async report() {
+      const report = await inspector.generateHealthReport()
+      console.log(report)
+      return report
+    },
 
-      async largest(limit = 10) {
-        return inspector.getLargestItems(limit)
-      },
+    async hotKeys(limit = 10) {
+      return inspector.getHotKeys(limit)
+    },
 
-      async expiring(withinMs = 60000) {
-        return inspector.getExpiringItems(withinMs)
-      },
+    async largest(limit = 10) {
+      return inspector.getLargestItems(limit)
+    },
 
-      async visualize() {
-        return inspector.getVisualizationData()
-      },
-    }
+    async expiring(withinMs = 60000) {
+      return inspector.getExpiringItems(withinMs)
+    },
 
-  console.log('✅ Cache DevTools installed')
-  console.log('Use window.__CACHE_DEVTOOLS__ to access debugging tools')
-  console.log('Examples:')
-  console.log('  __CACHE_DEVTOOLS__.stats() - Get statistics')
-  console.log('  __CACHE_DEVTOOLS__.items() - List all items')
-  console.log('  __CACHE_DEVTOOLS__.report() - Generate health report')
-  console.log('  __CACHE_DEVTOOLS__.health() - Check engine health')
+    async visualize() {
+      return inspector.getVisualizationData()
+    },
+
+    // 高级功能（如果可用）
+    async dashboard() {
+      if (!advancedInspector) {
+        console.warn('Advanced inspector not available')
+        return null
+      }
+      const data = await advancedInspector.generateDashboard()
+      console.group('📊 缓存仪表板')
+      console.table(data.realtime)
+      console.table(data.engines)
+      console.groupEnd()
+      return data
+    },
+
+    async analyze() {
+      if (!advancedInspector) {
+        console.warn('Advanced inspector not available')
+        return []
+      }
+      const suggestions = await advancedInspector.getOptimizationSuggestions()
+      console.group('💡 优化建议')
+      suggestions.forEach((s: any) => {
+        const icon = s.severity === 'critical' ? '🔴' : s.severity === 'warning' ? '⚠️' : 'ℹ️'
+        console.log(`${icon} ${s.message}`)
+        if (s.data?.recommendation) {
+          console.log(`   建议: ${s.data.recommendation}`)
+        }
+      })
+      console.groupEnd()
+      return suggestions
+    },
+
+    async memory() {
+      if (!advancedInspector) {
+        console.warn('Advanced inspector not available')
+        return null
+      }
+      const breakdown = await advancedInspector.getMemoryBreakdown()
+      console.table(breakdown.engines)
+      console.log(advancedInspector.generateMemoryChart(breakdown))
+      return breakdown
+    },
+
+    async healthReport() {
+      if (!advancedInspector) {
+        console.warn('Advanced inspector not available')
+        return null
+      }
+      const report = await advancedInspector.generateHealthReport()
+      console.log(report)
+      return report
+    },
+
+    async performance() {
+      const metrics = cache.getPerformanceMetrics()
+      console.group('⚡ 性能指标')
+      console.table({
+        GET: metrics.operations.get,
+        SET: metrics.operations.set,
+        REMOVE: metrics.operations.remove,
+      })
+      console.groupEnd()
+      return metrics
+    },
+  }
+
+  console.log('✅ Cache DevTools 已安装')
+  console.log('使用 window.__CACHE_DEVTOOLS__ 访问调试工具')
+  console.log('')
+  console.log('基础功能:')
+  console.log('  __CACHE_DEVTOOLS__.stats() - 获取统计信息')
+  console.log('  __CACHE_DEVTOOLS__.items() - 列出所有缓存项')
+  console.log('  __CACHE_DEVTOOLS__.report() - 生成健康报告')
+  console.log('  __CACHE_DEVTOOLS__.health() - 检查引擎健康')
+  console.log('')
+  console.log('高级功能:')
+  console.log('  __CACHE_DEVTOOLS__.dashboard() - 实时监控仪表板')
+  console.log('  __CACHE_DEVTOOLS__.analyze() - 自动优化建议')
+  console.log('  __CACHE_DEVTOOLS__.memory() - 内存使用分析')
+  console.log('  __CACHE_DEVTOOLS__.performance() - 性能指标')
+  console.log('  __CACHE_DEVTOOLS__.healthReport() - 完整健康报告')
 }
 

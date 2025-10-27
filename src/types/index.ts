@@ -7,6 +7,7 @@ export type StorageEngine =
   | 'cookie'
   | 'indexedDB'
   | 'memory'
+  | 'opfs'
 
 /**
  * 数据类型
@@ -41,7 +42,7 @@ export interface SerializableObject {
 /**
  * 可序列化的数组类型
  */
-export interface SerializableArray extends Array<SerializableValue> {}
+export interface SerializableArray extends Array<SerializableValue> { }
 
 /**
  * 缓存键类型
@@ -191,6 +192,14 @@ export interface MemoryEngineOptions extends BaseEngineOptions {
 }
 
 /**
+ * OPFS 引擎配置
+ */
+export interface OPFSEngineOptions extends BaseEngineOptions {
+  /** 目录名称 */
+  directoryName?: string
+}
+
+/**
  * 存储引擎配置
  */
 export interface StorageEngineConfig {
@@ -204,6 +213,8 @@ export interface StorageEngineConfig {
   indexedDB?: IndexedDBEngineOptions
   /** Memory 配置 */
   memory?: MemoryEngineOptions
+  /** OPFS 配置 */
+  opfs?: OPFSEngineOptions
 }
 
 /**
@@ -609,7 +620,7 @@ export function isSerializableValue(value: unknown): value is SerializableValue 
  * 检查是否为有效的存储引擎
  */
 export function isValidStorageEngine(engine: string): engine is StorageEngine {
-  return ['localStorage', 'sessionStorage', 'cookie', 'indexedDB', 'memory'].includes(engine)
+  return ['localStorage', 'sessionStorage', 'cookie', 'indexedDB', 'memory', 'opfs'].includes(engine)
 }
 
 /**

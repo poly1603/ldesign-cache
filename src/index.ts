@@ -47,10 +47,41 @@ export type {
   PerformanceStats,
 } from './core/performance-monitor'
 
+// 性能跟踪器
+export { PerformanceTracker } from './core/performance-tracker'
+export type {
+  PerformanceMetrics,
+  OperationStats,
+  EnginePerformance,
+  MemoryUsage,
+  CacheEfficiency,
+  HotKey,
+} from './core/performance-tracker'
+
 // 智能预取
 export { createPrefetchManager, PrefetchManager } from './core/prefetch-manager'
 
 export type { PrefetchStrategy, WarmupConfig } from './core/prefetch-manager'
+
+// 智能预测缓存
+export { createPredictiveCache, PredictiveCache } from './core/predictive-cache'
+
+export type {
+  AccessPattern,
+  AssociationRule,
+  PredictiveCacheConfig,
+  TimePatternPrediction,
+} from './core/predictive-cache'
+
+// 插件系统
+export {
+  createLoggingPlugin,
+  createPerformancePlugin,
+  createStatsPlugin,
+  PluginManager,
+} from './core/plugin-system'
+
+export type { CachePlugin } from './core/plugin-system'
 // 快照管理
 export { createSnapshotManager, SnapshotManager } from './core/snapshot-manager'
 
@@ -95,6 +126,20 @@ export { CacheInspector, createCacheInspector, installDevTools } from './devtool
 
 export type { CacheItemDetail, EngineHealth, InspectorOptions } from './devtools/inspector'
 
+// 高级检查器
+export { AdvancedCacheInspector, createAdvancedInspector } from './devtools/advanced-inspector'
+
+export type {
+  AdvancedCacheInspector as Advanced CacheInspector,
+  DashboardData,
+  EngineDetails,
+  MemoryBreakdown,
+  OptimizationSuggestion,
+  PerformanceAlert,
+  RealtimeData,
+  TimelineItem,
+} from './devtools/advanced-inspector'
+
 // 性能分析器
 export {
   createPerformanceProfiler,
@@ -123,6 +168,7 @@ export { IndexedDBEngine } from './engines/indexeddb-engine'
 export { LocalStorageEngine } from './engines/local-storage-engine'
 
 export { MemoryEngine } from './engines/memory-engine'
+export { OPFSEngine } from './engines/opfs-engine'
 export { SessionStorageEngine } from './engines/session-storage-engine'
 
 // ============================================================================
@@ -151,6 +197,15 @@ export { SecurityManager } from './security/security-manager'
 // 淘汰策略
 export * from './strategies/eviction-strategies'
 
+// 自适应策略
+export { AdaptiveStorageStrategy, createAdaptiveStrategy } from './strategies/adaptive-strategy'
+
+export type {
+  AdaptiveStrategyConfig,
+  EngineRecommendation,
+  UsagePattern,
+} from './strategies/adaptive-strategy'
+
 // ============================================================================
 // 工具模块导出
 // ============================================================================
@@ -163,6 +218,9 @@ export * from './types'
 // ============================================================================
 // 预设配置导出
 // ============================================================================
+
+// 辅助工具
+export * from './helpers'
 
 // 其他工具
 export * from './utils'

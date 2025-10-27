@@ -8,6 +8,7 @@ import { CookieEngine } from './cookie-engine'
 import { IndexedDBEngine } from './indexeddb-engine'
 import { LocalStorageEngine } from './local-storage-engine'
 import { MemoryEngine } from './memory-engine'
+import { OPFSEngine } from './opfs-engine'
 import { SessionStorageEngine } from './session-storage-engine'
 
 /**
@@ -42,6 +43,9 @@ export class StorageEngineFactory {
 
       case 'memory':
         return new MemoryEngine(config as StorageEngineConfig['memory'])
+
+      case 'opfs':
+        return new OPFSEngine(config as StorageEngineConfig['opfs'])
 
       default:
         throw new Error(`Unsupported storage engine: ${type}`)
@@ -81,6 +85,13 @@ export class StorageEngineFactory {
         case 'memory':
           return true
 
+        case 'opfs':
+          return (
+            typeof navigator !== 'undefined'
+            && 'storage' in navigator
+            && typeof (navigator.storage as any).getDirectory === 'function'
+          )
+
         default:
           return false
       }
@@ -100,6 +111,7 @@ export class StorageEngineFactory {
       'cookie',
       'indexedDB',
       'memory',
+      'opfs',
     ]
     return engines.filter(engine => this.isAvailable(engine))
   }
