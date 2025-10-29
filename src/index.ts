@@ -130,7 +130,7 @@ export type { CacheItemDetail, EngineHealth, InspectorOptions } from './devtools
 export { AdvancedCacheInspector, createAdvancedInspector } from './devtools/advanced-inspector'
 
 export type {
-  AdvancedCacheInspector as Advanced CacheInspector,
+  AdvancedCacheInspector,
   DashboardData,
   EngineDetails,
   MemoryBreakdown,

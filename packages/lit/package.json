@@ -1,0 +1,76 @@
+{
+  "name": "@ldesign/cache-lit",
+  "version": "0.2.0",
+  "description": "LDesign Cache - Lit 集成，提供指令和混入",
+  "type": "module",
+  "keywords": [
+    "cache",
+    "lit",
+    "web-components",
+    "directives",
+    "ldesign"
+  ],
+  "author": "LDesign Team",
+  "license": "MIT",
+  "homepage": "https://github.com/ldesign/ldesign#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ldesign/ldesign.git",
+    "directory": "packages/cache/packages/lit"
+  },
+  "bugs": {
+    "url": "https://github.com/ldesign/ldesign/issues"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.js"
+    },
+    "./directives": {
+      "types": "./dist/directives/index.d.ts",
+      "import": "./es/directives/index.js",
+      "require": "./lib/directives/index.js"
+    },
+    "./mixins": {
+      "types": "./dist/mixins/index.d.ts",
+      "import": "./es/mixins/index.js",
+      "require": "./lib/mixins/index.js"
+    }
+  },
+  "main": "./lib/index.js",
+  "module": "./es/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/cache-lit.umd.js",
+  "jsdelivr": "./dist/cache-lit.umd.js",
+  "files": [
+    "dist",
+    "es",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "ldesign-builder build --watch",
+    "build": "ldesign-builder build",
+    "build:clean": "ldesign-builder clean && ldesign-builder build",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ldesign/cache-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "lit": "^3.0.0"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.7.2",
+    "lit": "^3.2.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
+
+

@@ -1,14 +1,13 @@
+/**
+ * @ldesign/cache-react 构建配置
+ */
 import { defineConfig } from '@ldesign/builder'
 
 export default defineConfig({
   input: 'src/index.ts',
 
   output: {
-    format: ['esm', 'cjs', ],
-    name: 'LDesignCache',
-    globals: {
-      vue: 'Vue'
-    },
+    format: ['esm', 'cjs', 'umd'],
     esm: {
       dir: 'es',
       preserveStructure: true,
@@ -18,17 +17,28 @@ export default defineConfig({
       preserveStructure: true,
     },
     umd: {
-      enabled: false,
       dir: 'dist',
+      name: 'LDesignCacheReact',
+      fileName: 'cache-react.umd.js',
     },
   },
 
   dts: true,
   sourcemap: true,
+  minify: false,
   clean: true,
 
   external: [
-    'vue',
-    '@ldesign/shared'
+    'react',
+    'react-dom',
+    '@ldesign/cache-core',
   ],
+
+  globals: {
+    react: 'React',
+    'react-dom': 'ReactDOM',
+    '@ldesign/cache-core': 'LDesignCacheCore',
+  },
 })
+
+

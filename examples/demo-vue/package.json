@@ -1,0 +1,24 @@
+{
+  "name": "@ldesign/cache-demo-vue",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LDesign Cache Vue 演示示例",
+  "type": "module",
+  "scripts": {
+    "dev": "ldesign-launcher dev",
+    "build": "ldesign-launcher build",
+    "preview": "ldesign-launcher preview"
+  },
+  "dependencies": {
+    "@ldesign/cache-core": "workspace:*",
+    "@ldesign/cache-vue": "workspace:*",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@ldesign/launcher": "workspace:*",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.7.2"
+  }
+}
+
+

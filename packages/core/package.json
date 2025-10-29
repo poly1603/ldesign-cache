@@ -1,0 +1,126 @@
+{
+  "name": "@ldesign/cache-core",
+  "version": "0.2.0",
+  "description": "Framework-agnostic core cache management with multi-engine support and smart strategies",
+  "keywords": [
+    "cache",
+    "storage",
+    "indexeddb",
+    "localstorage",
+    "memory-cache",
+    "ldesign",
+    "framework-agnostic"
+  ],
+  "author": "ldesign",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs"
+    },
+    "./engines": {
+      "types": "./es/engines/index.d.ts",
+      "import": "./es/engines/index.js",
+      "require": "./lib/engines/index.cjs"
+    },
+    "./engines/*": {
+      "types": "./es/engines/*.d.ts",
+      "import": "./es/engines/*.js",
+      "require": "./lib/engines/*.cjs"
+    },
+    "./strategies": {
+      "types": "./es/strategies/index.d.ts",
+      "import": "./es/strategies/index.js",
+      "require": "./lib/strategies/index.cjs"
+    },
+    "./strategies/*": {
+      "types": "./es/strategies/*.d.ts",
+      "import": "./es/strategies/*.js",
+      "require": "./lib/strategies/*.cjs"
+    },
+    "./utils": {
+      "types": "./es/utils/index.d.ts",
+      "import": "./es/utils/index.js",
+      "require": "./lib/utils/index.cjs"
+    },
+    "./utils/*": {
+      "types": "./es/utils/*.d.ts",
+      "import": "./es/utils/*.js",
+      "require": "./lib/utils/*.cjs"
+    },
+    "./core": {
+      "types": "./es/core/index.d.ts",
+      "import": "./es/core/index.js",
+      "require": "./lib/core/index.cjs"
+    },
+    "./core/*": {
+      "types": "./es/core/*.d.ts",
+      "import": "./es/core/*.js",
+      "require": "./lib/core/*.cjs"
+    },
+    "./security": {
+      "types": "./es/security/index.d.ts",
+      "import": "./es/security/index.js",
+      "require": "./lib/security/index.cjs"
+    },
+    "./security/*": {
+      "types": "./es/security/*.d.ts",
+      "import": "./es/security/*.js",
+      "require": "./lib/security/*.cjs"
+    },
+    "./types": {
+      "types": "./es/types/index.d.ts",
+      "import": "./es/types/index.js",
+      "require": "./lib/types/index.cjs"
+    },
+    "./types/*": {
+      "types": "./es/types/*.d.ts",
+      "import": "./es/types/*.js",
+      "require": "./lib/types/*.cjs"
+    }
+  },
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/cache-core.min.js",
+  "jsdelivr": "./dist/cache-core.min.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "package.json",
+    "es",
+    "lib",
+    "dist"
+  ],
+  "scripts": {
+    "dev": "ldesign-builder build -f esm,cjs,dts --watch",
+    "build": "ldesign-builder build -f esm,cjs,dts",
+    "build:clean": "ldesign-builder clean && ldesign-builder build -f esm,cjs,dts",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "lint": "eslint . --fix",
+    "lint:check": "eslint ."
+  },
+  "dependencies": {
+    "idb": "^8.0.2"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^20.0.0",
+    "@vitest/ui": "^4.0.4",
+    "eslint": "^9.18.0",
+    "jsdom": "^27.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

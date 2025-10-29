@@ -1,14 +1,13 @@
+/**
+ * @ldesign/cache-vue 构建配置
+ */
 import { defineConfig } from '@ldesign/builder'
 
 export default defineConfig({
   input: 'src/index.ts',
 
   output: {
-    format: ['esm', 'cjs', ],
-    name: 'LDesignCache',
-    globals: {
-      vue: 'Vue'
-    },
+    format: ['esm', 'cjs', 'umd'],
     esm: {
       dir: 'es',
       preserveStructure: true,
@@ -18,17 +17,26 @@ export default defineConfig({
       preserveStructure: true,
     },
     umd: {
-      enabled: false,
       dir: 'dist',
+      name: 'LDesignCacheVue',
+      fileName: 'cache-vue.umd.js',
     },
   },
 
   dts: true,
   sourcemap: true,
+  minify: false,
   clean: true,
 
   external: [
     'vue',
-    '@ldesign/shared'
+    '@ldesign/cache-core',
   ],
+
+  globals: {
+    vue: 'Vue',
+    '@ldesign/cache-core': 'LDesignCacheCore',
+  },
 })
+
+

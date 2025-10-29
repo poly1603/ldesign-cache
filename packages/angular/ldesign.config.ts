@@ -1,14 +1,13 @@
+/**
+ * @ldesign/cache-angular 构建配置
+ */
 import { defineConfig } from '@ldesign/builder'
 
 export default defineConfig({
   input: 'src/index.ts',
 
   output: {
-    format: ['esm', 'cjs', ],
-    name: 'LDesignCache',
-    globals: {
-      vue: 'Vue'
-    },
+    format: ['esm', 'cjs'],
     esm: {
       dir: 'es',
       preserveStructure: true,
@@ -17,18 +16,18 @@ export default defineConfig({
       dir: 'lib',
       preserveStructure: true,
     },
-    umd: {
-      enabled: false,
-      dir: 'dist',
-    },
   },
 
   dts: true,
   sourcemap: true,
+  minify: false,
   clean: true,
 
   external: [
-    'vue',
-    '@ldesign/shared'
+    '@angular/core',
+    'rxjs',
+    'rxjs/operators',
+    '@ldesign/cache-core',
   ],
 })
+
