@@ -176,7 +176,6 @@
     "pre-push": "pnpm ci:test",
     "// Release Scripts": "",
     "release": "semantic-release",
-    "prepublishOnly": "pnpm run clean && pnpm run build && pnpm run test:run",
     "// Deployment Scripts": "",
     "deploy": "tsx ../../tools/deploy/package-deployer.ts cache",
     "deploy:beta": "tsx ../../tools/deploy/package-deployer.ts cache --tag beta",
