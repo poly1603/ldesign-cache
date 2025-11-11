@@ -68,6 +68,16 @@
       "import": "./es/engines/*.js",
       "require": "./lib/engines/*.cjs"
     },
+    "./helpers": {
+      "types": "./es/helpers/index.d.ts",
+      "import": "./es/helpers/index.js",
+      "require": "./lib/helpers/index.cjs"
+    },
+    "./helpers/*": {
+      "types": "./es/helpers/*.d.ts",
+      "import": "./es/helpers/*.js",
+      "require": "./lib/helpers/*.cjs"
+    },
     "./security/*": {
       "types": "./es/security/*.d.ts",
       "import": "./es/security/*.js",
@@ -77,6 +87,16 @@
       "types": "./es/strategies/*.d.ts",
       "import": "./es/strategies/*.js",
       "require": "./lib/strategies/*.cjs"
+    },
+    "./testing": {
+      "types": "./es/testing/index.d.ts",
+      "import": "./es/testing/index.js",
+      "require": "./lib/testing/index.cjs"
+    },
+    "./testing/*": {
+      "types": "./es/testing/*.d.ts",
+      "import": "./es/testing/*.js",
+      "require": "./lib/testing/*.cjs"
     },
     "./types": {
       "types": "./es/types/index.d.ts",
