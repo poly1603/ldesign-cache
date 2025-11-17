@@ -139,7 +139,8 @@
     "LICENSE",
     "package.json",
     "es",
-    "lib"
+    "lib",
+    "dist"
   ],
   "scripts": {
     "// Build Scripts": "",
