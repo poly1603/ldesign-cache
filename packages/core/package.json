@@ -1,15 +1,16 @@
 {
   "name": "@ldesign/cache-core",
-  "version": "0.2.0",
-  "description": "Framework-agnostic core cache management with multi-engine support and smart strategies",
+  "version": "1.0.0",
+  "description": "企业级缓存管理库 - 核心模块",
   "keywords": [
     "cache",
-    "storage",
-    "indexeddb",
-    "localstorage",
+    "lru",
+    "lfu",
+    "fifo",
+    "ttl",
     "memory-cache",
     "ldesign",
-    "framework-agnostic"
+    "typescript"
   ],
   "author": "ldesign",
   "license": "MIT",
@@ -17,110 +18,26 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./es/index.d.ts",
-      "import": "./es/index.js",
-      "require": "./lib/index.cjs"
-    },
-    "./constants": {
-      "types": "./es/constants/index.d.ts",
-      "import": "./es/constants/index.js",
-      "require": "./lib/constants/index.cjs"
-    },
-    "./constants/*": {
-      "types": "./es/constants/*.d.ts",
-      "import": "./es/constants/*.js",
-      "require": "./lib/constants/*.cjs"
-    },
-    "./core/*": {
-      "types": "./es/core/*.d.ts",
-      "import": "./es/core/*.js",
-      "require": "./lib/core/*.cjs"
-    },
-    "./engines": {
-      "types": "./es/engines/index.d.ts",
-      "import": "./es/engines/index.js",
-      "require": "./lib/engines/index.cjs"
-    },
-    "./engines/*": {
-      "types": "./es/engines/*.d.ts",
-      "import": "./es/engines/*.js",
-      "require": "./lib/engines/*.cjs"
-    },
-    "./strategies": {
-      "types": "./es/strategies/index.d.ts",
-      "import": "./es/strategies/index.js",
-      "require": "./lib/strategies/index.cjs"
-    },
-    "./strategies/*": {
-      "types": "./es/strategies/*.d.ts",
-      "import": "./es/strategies/*.js",
-      "require": "./lib/strategies/*.cjs"
-    },
-    "./types": {
-      "types": "./es/types/index.d.ts",
-      "import": "./es/types/index.js",
-      "require": "./lib/types/index.cjs"
-    },
-    "./types/*": {
-      "types": "./es/types/*.d.ts",
-      "import": "./es/types/*.js",
-      "require": "./lib/types/*.cjs"
-    },
-    "./utils": {
-      "types": "./es/utils/index.d.ts",
-      "import": "./es/utils/index.js",
-      "require": "./lib/utils/index.cjs"
-    },
-    "./utils/*": {
-      "types": "./es/utils/*.d.ts",
-      "import": "./es/utils/*.js",
-      "require": "./lib/utils/*.cjs"
-    },
-    "./__tests__/*": {
-      "types": "./es/__tests__/*.d.ts",
-      "import": "./es/__tests__/*.js",
-      "require": "./lib/__tests__/*.cjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js"
     }
   },
-  "main": "./lib/index.cjs",
-  "module": "./es/index.js",
-  "types": "./es/index.d.ts",
-  "unpkg": "./dist/index.min.js",
-  "jsdelivr": "./dist/index.min.js",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
-    "README.md",
-    "LICENSE",
-    "package.json",
-    "es",
-    "lib",
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
-    "build": "ldesign-builder build",
+    "build": "tsc && tsc -p tsconfig.cjs.json",
     "dev": "tsc --watch",
-    "type-check": "tsc --noEmit",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui",
-    "lint": "eslint . --fix",
-    "lint:check": "eslint .",
-    "clean": "node -e \"const fs=require('fs'); ['es','lib','dist','.tsbuildinfo'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch{}})\""
-  },
-  "dependencies": {
-    "idb": "^8.0.2"
+    "clean": "rimraf dist"
   },
   "devDependencies": {
-    "@ldesign/builder": "workspace:*",
-    "@types/jsdom": "^27.0.0",
-    "@types/node": "^20.0.0",
-    "@vitest/ui": "^4.0.4",
-    "eslint": "^9.18.0",
-    "jsdom": "^27.0.1",
-    "typescript": "^5.7.2",
-    "vitest": "^3.2.4"
-  },
-  "publishConfig": {
-    "access": "public"
+    "typescript": "^5.7.3",
+    "rimraf": "^5.0.0"
   }
 }
+

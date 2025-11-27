@@ -1,14 +1,14 @@
 {
   "name": "@ldesign/cache-vue",
-  "version": "0.2.0",
-  "description": "Vue 3 components and composables for @ldesign/cache-core",
+  "version": "1.0.0",
+  "description": "企业级缓存管理库 - Vue 3 适配器",
   "keywords": [
     "cache",
     "vue",
     "vue3",
-    "composition-api",
-    "composables",
-    "ldesign"
+    "composable",
+    "ldesign",
+    "typescript"
   ],
   "author": "ldesign",
   "license": "MIT",
@@ -16,59 +16,34 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./es/index.d.ts",
-      "import": "./es/index.js",
-      "require": "./lib/index.cjs"
-    },
-    "./plugins": {
-      "types": "./es/plugins/index.d.ts",
-      "import": "./es/plugins/index.js",
-      "require": "./lib/plugins/index.cjs"
-    },
-    "./plugins/*": {
-      "types": "./es/plugins/*.d.ts",
-      "import": "./es/plugins/*.js",
-      "require": "./lib/plugins/*.cjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     }
   },
-  "main": "./lib/index.cjs",
-  "module": "./es/index.js",
-  "types": "./es/index.d.ts",
-  "unpkg": "./dist/index.min.js",
-  "jsdelivr": "./dist/index.min.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
-    "README.md",
-    "LICENSE",
-    "package.json",
-    "es",
-    "lib",
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
-    "build": "ldesign-builder build",
-    "dev": "tsc --watch",
-    "type-check": "vue-tsc --noEmit",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "lint": "eslint . --fix",
-    "lint:check": "eslint .",
-    "clean": "node -e \"const fs=require('fs'); ['es','esm','cjs','dist','.tsbuildinfo'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch{}})\""
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "clean": "rimraf dist es lib"
+  },
+  "dependencies": {
+    "@ldesign/cache-core": "workspace:*"
   },
   "peerDependencies": {
-    "@ldesign/cache-core": "workspace:*",
-    "vue": ">=3.0.0"
+    "vue": "^3.3.0"
   },
   "devDependencies": {
-    "@ldesign/builder": "workspace:*",
-    "@types/node": "^20.0.0",
-    "@vitejs/plugin-vue": "^5.0.3",
-    "eslint": "^9.18.0",
-    "typescript": "^5.7.2",
-    "vitest": "^3.2.4",
-    "vue": "^3.5.13",
-    "vue-tsc": "^3.0.5"
-  },
-  "publishConfig": {
-    "access": "public"
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.3",
+    "rimraf": "^5.0.0",
+    "vue": "^3.3.0"
   }
 }
+

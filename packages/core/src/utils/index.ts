@@ -1,7 +1,9 @@
 /**
- * 工具函数模块导出
- *
- * @module utils
+ * 工具函数导出
+ * @module @ldesign/cache/core/utils
  */
 
-export * from './object-pool'
+export * from './hash'
+export * from './timer'
+export * from './validator'
+

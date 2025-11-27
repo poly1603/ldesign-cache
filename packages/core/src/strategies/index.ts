@@ -1,7 +1,10 @@
 /**
- * 策略模块导出
- *
- * @module strategies
+ * 缓存策略导出
+ * @module @ldesign/cache/core/strategies
  */
 
-export * from './eviction-strategies'
+export * from './lru'
+export * from './lfu'
+export * from './fifo'
+export * from './ttl'
+

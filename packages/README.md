@@ -1,21 +1,23 @@
 # @ldesign/cache 子包架构
 
-> 模块化的缓存管理系统，按功能拆分为多个独立子包
+> 企业级缓存管理系统，提供多种缓存策略和框架集成
 
 ## 📦 子包列表
 
 ### 核心包
 
 #### [@ldesign/cache-core](./core)
-核心缓存管理功能，提供多存储引擎支持和智能策略。
+核心缓存管理功能，提供多种缓存策略和完整的缓存管理能力。
 
 **功能特性：**
-- ✅ 多存储引擎（Memory、LocalStorage、SessionStorage、IndexedDB、Cookie、OPFS）
-- ✅ 智能缓存策略
-- ✅ 性能监控和追踪
-- ✅ 跨标签页/跨设备同步
-- ✅ 版本管理和迁移
-- ✅ 插件系统
+- ✅ 4 种缓存策略（LRU、LFU、FIFO、TTL）
+- ✅ O(1) 时间复杂度的核心操作
+- ✅ 完整的统计功能（命中率、淘汰次数等）
+- ✅ 事件系统（监听缓存操作）
+- ✅ 批量操作（批量读写）
+- ✅ 持久化支持（localStorage/sessionStorage）
+- ✅ 自动清理过期项
+- ✅ 完整的 TypeScript 类型定义
 
 **安装：**
 ```bash
@@ -24,15 +26,21 @@ pnpm add @ldesign/cache-core
 
 **基础使用：**
 ```typescript
-import { createCache } from '@ldesign/cache-core'
+import { CacheManager, CacheStrategy } from '@ldesign/cache-core'
 
-const cache = createCache({
-  defaultEngine: 'localStorage',
-  defaultTTL: 60 * 1000,
+const cache = new CacheManager({
+  strategy: CacheStrategy.LRU,
+  maxSize: 100,
+  defaultTTL: 5000,
+  enableStats: true
 })
 
-await cache.set('key', 'value')
-const value = await cache.get('key')
+cache.set('key', 'value')
+const value = cache.get('key')
+
+// 获取统计信息
+const stats = cache.getStats()
+console.log('命中率:', stats.hitRate)
 ```
 
 ---
@@ -43,27 +51,58 @@ const value = await cache.get('key')
 Vue 3 集成，提供响应式缓存管理和 Composition API。
 
 **功能特性：**
-- ✅ Composition API Hooks
-- ✅ 响应式缓存数据
-- ✅ Provider 组件
-- ✅ 自动刷新和轮询
+- ✅ `useCache` Composable - 响应式缓存操作
+- ✅ Vue 插件支持 - 全局注册和依赖注入
+- ✅ 响应式统计信息 - 实时更新的缓存状态
+- ✅ 自动生命周期管理 - 组件卸载时自动清理
 - ✅ 完整 TypeScript 支持
+- ✅ 支持所有核心缓存策略
 
 **安装：**
 ```bash
-pnpm add @ldesign/cache-vue @ldesign/cache-core
+pnpm add @ldesign/cache-vue
 ```
 
-**使用：**
+**使用 Composable：**
 ```vue
 <script setup lang="ts">
 import { useCache } from '@ldesign/cache-vue'
 
-const { data, loading, refresh } = useCache('user', {
-  fetcher: () => fetch('/api/user').then(r => r.json()),
-  ttl: 60000,
+const { get, set, size, stats } = useCache<User>({
+  strategy: 'lru',
+  maxSize: 100,
+  defaultTTL: 5000,
+  enableStats: true
 })
+
+// 设置缓存
+set('user:1', { id: 1, name: 'John' })
+
+// 获取缓存
+const user = get('user:1')
 </script>
+
+<template>
+  <div>
+    <p>缓存大小: {{ size }}</p>
+    <p>命中率: {{ (stats.hitRate * 100).toFixed(2) }}%</p>
+  </div>
+</template>
+```
+
+**使用插件：**
+```typescript
+// main.ts
+import { createApp } from 'vue'
+import { CachePlugin } from '@ldesign/cache-vue'
+
+const app = createApp(App)
+
+app.use(CachePlugin, {
+  strategy: 'lru',
+  maxSize: 100,
+  enableStats: true
+})
 ```
 
 ---

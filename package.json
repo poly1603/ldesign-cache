@@ -31,6 +31,11 @@
       "types": "./es/index.d.ts",
       "import": "./es/index.js",
       "require": "./lib/index.cjs"
+    },
+    "./vue": {
+      "types": "./es/vue/index.d.ts",
+      "import": "./es/vue/index.js",
+      "require": "./lib/vue/index.cjs"
     }
   },
   "main": "./lib/index.cjs",
@@ -48,11 +53,8 @@
   ],
   "scripts": {
     "build": "ldesign-builder build -f esm,cjs,dts",
-    "build:core": "pnpm --filter @ldesign/cache-core run build",
-    "build:vue": "pnpm --filter @ldesign/cache-vue run build",
-    "build:watch": "pnpm --filter \"./packages/*\" run build:watch",
     "dev": "ldesign-builder build -f esm,cjs,dts --watch",
-    "type-check": "pnpm --filter \"./packages/*\" run type-check",
+    "type-check": "tsc --noEmit",
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
     "test": "vitest",
@@ -60,11 +62,7 @@
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "clean": "pnpm --filter \"./packages/*\" run clean && rimraf es lib dist"
-  },
-  "dependencies": {
-    "@ldesign/cache-core": "workspace:*",
-    "@ldesign/cache-vue": "workspace:*"
+    "clean": "rimraf es lib dist"
   },
   "peerDependencies": {
     "vue": "^3.3.0"

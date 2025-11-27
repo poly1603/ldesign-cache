@@ -1,109 +1,129 @@
-import type { CacheManager, CacheOptions } from '@ldesign/cache-core'
 /**
- * Vue 3 缓存插件
- *
- * 提供 Vue 插件模式，支持 app.use() 安装
- *
- * @module plugin
+ * Vue 缓存插件
+ * 
+ * 提供全局缓存实例和注入功能
+ * 
+ * @module @ldesign/cache/vue/plugin
  */
-import type { App, Plugin } from 'vue'
-import { createCache } from '@ldesign/cache-core'
-import { CACHE_MANAGER_KEY } from './cache-provider'
+
+import type { App, InjectionKey } from 'vue'
+import type { CacheOptions } from '@ldesign/cache/core'
+import { CacheManager } from '@ldesign/cache/core'
 
 /**
- * 插件配置选项
+ * 缓存注入键
+ */
+export const CACHE_INJECTION_KEY: InjectionKey<CacheManager> = Symbol('cache')
+
+/**
+ * 缓存插件选项
  */
 export interface CachePluginOptions extends CacheOptions {
-  /**
-   * 自定义缓存管理器实例
-   * 如果提供，将使用此实例而不是创建新实例
-   */
-  cacheManager?: CacheManager
+  /** 全局属性名称，默认 '$cache' */
+  globalPropertyName?: string
+  /** 是否注入到组件，默认 true */
+  inject?: boolean
 }
 
 /**
  * Vue 缓存插件
- *
- * 通过 app.use() 安装后，可以在任何组件中使用 useCache() 获取缓存实例
- *
+ * 
+ * 提供全局缓存实例，可通过 inject 或 this.$cache 访问
+ * 
  * @example
  * ```typescript
  * import { createApp } from 'vue'
- * import { cachePlugin } from '@ldesign/cache-vue'
- *
+ * import { CachePlugin } from '@ldesign/cache/vue'
+ * 
  * const app = createApp(App)
- *
- * // 使用默认配置
- * app.use(cachePlugin)
- *
- * // 自定义配置
- * app.use(cachePlugin, {
- *   defaultTTL: 5 * 60 * 1000, // 5分钟
- *   engines: {
- *     memory: {
- *       maxItems: 10000,
- *       evictionStrategy: 'LRU'
- *     }
- *   }
+ * 
+ * app.use(CachePlugin, {
+ *   strategy: 'lru',
+ *   maxSize: 100,
+ *   defaultTTL: 5000,
+ *   enableStats: true,
+ *   globalPropertyName: '$cache'
  * })
- *
- * app.mount('#app')
+ * ```
+ * 
+ * 在组件中使用：
+ * ```vue
+ * <script setup lang="ts">
+ * import { inject } from 'vue'
+ * import { CACHE_INJECTION_KEY } from '@ldesign/cache/vue'
+ * 
+ * const cache = inject(CACHE_INJECTION_KEY)
+ * 
+ * // 使用缓存
+ * cache?.set('key', 'value')
+ * const value = cache?.get('key')
+ * </script>
+ * ```
+ * 
+ * 或使用全局属性（Options API）：
+ * ```vue
+ * <script>
+ * export default {
+ *   mounted() {
+ *     // 使用全局属性
+ *     this.$cache.set('key', 'value')
+ *     const value = this.$cache.get('key')
+ *   }
+ * }
+ * </script>
  * ```
  */
-export const cachePlugin: Plugin<CachePluginOptions[]> = {
-  install(app: App, options?: CachePluginOptions) {
-    // 使用提供的缓存管理器或创建新实例
-    const cacheManager = options?.cacheManager ?? createCache(options)
+export const CachePlugin = {
+  install(app: App, options: CachePluginOptions = {}) {
+    const {
+      globalPropertyName = '$cache',
+      inject = true,
+      ...cacheOptions
+    } = options
 
-    // 提供给所有组件
-    app.provide(CACHE_MANAGER_KEY, cacheManager)
+    // 创建全局缓存实例
+    const cache = new CacheManager(cacheOptions)
 
-    // 添加全局属性（可选，用于 Options API）
-    app.config.globalProperties.$cache = cacheManager
+    // 注入到组件
+    if (inject) {
+      app.provide(CACHE_INJECTION_KEY, cache)
+    }
+
+    // 添加全局属性
+    if (globalPropertyName) {
+      app.config.globalProperties[globalPropertyName] = cache
+    }
+
+    // 在应用卸载时清理
+    const originalUnmount = app.unmount
+    app.unmount = function () {
+      cache.destroy()
+      originalUnmount.call(this)
+    }
   },
 }
 
 /**
- * 创建缓存插件实例
- *
- * 用于需要自定义配置的场景
- *
- * @param options - 插件配置选项
- * @returns Vue 插件实例
- *
- * @example
- * ```typescript
- * import { createCachePlugin } from '@ldesign/cache-vue'
- *
- * const myPlugin = createCachePlugin({
- *   defaultTTL: 10 * 60 * 1000,
- *   engines: {
- *     memory: {
- *       maxItems: 5000
- *     }
- *   }
- * })
- *
- * app.use(myPlugin)
- * ```
+ * 创建缓存插件
+ * @param options - 插件选项
+ * @returns Vue 插件
  */
-export function createCachePlugin(options?: CachePluginOptions): Plugin {
+export function createCachePlugin(options: CachePluginOptions = {}) {
   return {
     install(app: App) {
-      cachePlugin.install(app, options)
+      CachePlugin.install(app, options)
     },
   }
 }
 
 /**
- * 声明全局属性类型
+ * TypeScript 类型扩展
+ * 
+ * 为 Vue 组件实例添加 $cache 类型
  */
-declare module 'vue' {
-  interface ComponentCustomProperties {
-    /**
-     * 全局缓存管理器实例
-     * 通过 cachePlugin 安装后可用
-     */
+declare module '@vue/runtime-core' {
+  export interface ComponentCustomProperties {
     $cache: CacheManager
   }
 }
+
