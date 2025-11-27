@@ -1,194 +1,225 @@
 # @ldesign/cache-vue
 
-> LDesign Cache 的 Vue 3 集成包 - 响应式缓存管理
+> @ldesign/cache-core 的 Vue 3 适配层 - 响应式缓存管理
 
 [![npm version](https://img.shields.io/npm/v/@ldesign/cache-vue.svg)](https://www.npmjs.com/package/@ldesign/cache-vue)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/@ldesign/cache-vue)](https://bundlephobia.com/package/@ldesign/cache-vue)
 [![license](https://img.shields.io/npm/l/@ldesign/cache-vue.svg)](https://github.com/ldesign/ldesign/blob/main/LICENSE)
 
-## 特性
+## ✨ 特性
 
 - 🎯 **Composition API** - 完整的 Vue 3 Composition API 支持
-- 🔄 **响应式** - 自动追踪缓存变化并更新 UI
-- 📦 **Provider 模式** - 全局缓存实例注入
+- 🔄 **响应式缓存** - 自动追踪缓存变化并更新 UI
+- 📦 **Vue Plugin** - 支持 `app.use()` 全局安装
+- 🔌 **Engine Plugin** - 支持 LDesign Engine 集成
 - ⚡ **自动刷新** - 支持轮询和条件刷新
-- 🎨 **TypeScript** - 完整的类型定义
+- 🎨 **TypeScript** - 完整的类型定义和智能提示
 
-## 安装
+## 📦 安装
 
 ```bash
+# pnpm (推荐)
+pnpm add @ldesign/cache-vue @ldesign/cache-core
+
 # npm
 npm install @ldesign/cache-vue @ldesign/cache-core
 
 # yarn
 yarn add @ldesign/cache-vue @ldesign/cache-core
-
-# pnpm
-pnpm add @ldesign/cache-vue @ldesign/cache-core
 ```
 
-## 快速开始
+## 🚀 快速开始
 
-### 基础使用
+### 方式一：Vue Plugin
+
+```typescript
+import { cachePlugin } from '@ldesign/cache-vue'
+// main.ts
+import { createApp } from 'vue'
+import App from './App.vue'
+
+const app = createApp(App)
+
+app.use(cachePlugin, {
+  defaultTTL: 5 * 60 * 1000, // 5分钟
+  engines: {
+    memory: {
+      maxItems: 5000,
+      evictionStrategy: 'LRU'
+    }
+  }
+})
+
+app.mount('#app')
+```
+
+### 方式二：Engine Plugin
+
+```typescript
+// plugins/index.ts
+import { createCacheEnginePlugin } from '@ldesign/cache-vue/plugins'
+
+export const plugins = [
+  createCacheEnginePlugin({
+    defaultTTL: 5 * 60 * 1000,
+    engines: {
+      memory: {
+        maxItems: 5000,
+        evictionStrategy: 'LRU'
+      }
+    },
+    debug: true
+  })
+]
+```
+
+## 📖 Composables
+
+### useCache
+
+基础缓存操作组合式函数：
 
 ```vue
 <script setup lang="ts">
 import { useCache } from '@ldesign/cache-vue'
 
-interface User {
-  name: string
-  age: number
-}
+const { set, get, remove, clear, has, keys, getStats, useReactiveCache } = useCache()
 
-const { data, loading, error, refresh, update } = useCache<User>('user', {
-  fetcher: async () => {
-    const res = await fetch('/api/user')
-    return res.json()
-  },
-  ttl: 60 * 1000, // 1分钟
+// 基础操作
+await set('user:1', { name: '张三', age: 25 })
+const user = await get<{ name: string, age: number }>('user:1')
+await remove('user:1')
+
+// 响应式缓存
+const userCache = useReactiveCache<{ name: string }>('user:1')
+// 响应式访问: userCache.value.value
+await userCache.set({ name: '李四' })
+await userCache.refresh()
+</script>
+```
+
+### useCacheValue
+
+简单值缓存：
+
+```vue
+<script setup lang="ts">
+import { useCacheValue } from '@ldesign/cache-vue'
+
+const { value, set, refresh, remove, loading, error } = useCacheValue<string>('message', '默认值', {
+  ttl: 60000
 })
 </script>
 
 <template>
   <div>
-    <div v-if="loading">加载中...</div>
-    <div v-else-if="error">错误: {{ error.message }}</div>
-    <div v-else-if="data">
-      <p>姓名: {{ data.name }}</p>
-      <p>年龄: {{ data.age }}</p>
-      <button @click="refresh">刷新</button>
-    </div>
+    <p>值: {{ value }}</p>
+    <button @click="set('新消息')">
+      更新
+    </button>
+    <button @click="refresh">
+      刷新
+    </button>
   </div>
 </template>
 ```
 
-### 使用 Provider
+### useCacheSync
+
+双向绑定缓存（支持 v-model）：
 
 ```vue
-<!-- App.vue -->
 <script setup lang="ts">
-import { CacheProvider } from '@ldesign/cache-vue'
-import { createCache } from '@ldesign/cache-core'
+import { useCacheSync } from '@ldesign/cache-vue'
 
-const cache = createCache({
-  defaultEngine: 'localStorage',
-  defaultTTL: 60 * 60 * 1000,
+const { value, loading, error } = useCacheSync<string>('input-value', '', {
+  ttl: 60000,
+  debounce: 300 // 防抖延迟
 })
 </script>
 
 <template>
-  <CacheProvider :cache="cache">
-    <YourApp />
-  </CacheProvider>
+  <input v-model="value" placeholder="输入会自动保存到缓存">
 </template>
 ```
 
-```vue
-<!-- Component.vue -->
-<script setup lang="ts">
-import { useCache } from '@ldesign/cache-vue'
+### useCacheStats
 
-// 自动使用 Provider 提供的缓存实例
-const { data } = useCache('key')
-</script>
-```
-
-### 手动操作
-
-```vue
-<script setup lang="ts">
-import { useCache } from '@ldesign/cache-vue'
-
-const { data, update, remove } = useCache<string>('message')
-
-async function saveMessage() {
-  await update('Hello World', { ttl: 5000 })
-}
-
-async function deleteMessage() {
-  await remove()
-}
-</script>
-
-<template>
-  <div>
-    <input v-model="data" />
-    <button @click="saveMessage">保存</button>
-    <button @click="deleteMessage">删除</button>
-  </div>
-</template>
-```
-
-### 自动刷新
-
-```vue
-<script setup lang="ts">
-import { useCache } from '@ldesign/cache-vue'
-
-// 每 5 秒自动刷新一次
-const { data } = useCache('realtime-data', {
-  fetcher: () => fetch('/api/data').then(r => r.json()),
-  refreshInterval: 5000,
-})
-</script>
-```
-
-### 缓存统计
+缓存统计信息：
 
 ```vue
 <script setup lang="ts">
 import { useCacheStats } from '@ldesign/cache-vue'
 
-const { stats, refresh } = useCacheStats()
+const { stats, hitRatePercent, totalRequests, refresh } = useCacheStats({
+  autoRefresh: true,
+  refreshInterval: 5000
+})
 </script>
 
 <template>
   <div>
     <p>总键数: {{ stats?.totalKeys }}</p>
-    <p>命中率: {{ (stats?.hitRate * 100).toFixed(2) }}%</p>
-    <button @click="refresh">刷新统计</button>
+    <p>命中率: {{ hitRatePercent }}</p>
+    <p>总请求: {{ totalRequests }}</p>
+    <button @click="refresh">
+      刷新
+    </button>
   </div>
 </template>
 ```
 
-## API
+## 📖 API 文档
 
-### useCache(key, options?)
+### useCache 返回值
 
-返回响应式的缓存操作对象。
+| 属性/方法 | 类型 | 描述 |
+|-----------|------|------|
+| `set` | `(key, value, options?) => Promise<void>` | 设置缓存 |
+| `get` | `<T>(key) => Promise<T \| null>` | 获取缓存 |
+| `remove` | `(key) => Promise<void>` | 删除缓存 |
+| `clear` | `(engine?) => Promise<void>` | 清空缓存 |
+| `has` | `(key) => Promise<boolean>` | 检查是否存在 |
+| `keys` | `(engine?) => Promise<string[]>` | 获取所有键 |
+| `getStats` | `() => Promise<CacheStats>` | 获取统计信息 |
+| `stats` | `ComputedRef<CacheStats \| null>` | 响应式统计 |
+| `loading` | `ComputedRef<boolean>` | 加载状态 |
+| `error` | `ComputedRef<Error \| null>` | 错误信息 |
+| `useReactiveCache` | `<T>(key, defaultValue?) => ReactiveCache<T>` | 创建响应式缓存 |
+| `manager` | `CacheManager` | 缓存管理器实例 |
 
-**参数：**
-- `key: string` - 缓存键名
-- `options?: UseCacheOptions` - 配置选项
-  - `immediate?: boolean` - 是否立即加载（默认 `true`）
-  - `fetcher?: () => Promise<T> | T` - 数据获取函数
-  - `refreshInterval?: number` - 自动刷新间隔（毫秒）
-  - `ttl?: number` - 过期时间
-  - `engine?: string` - 存储引擎
+### ReactiveCache 返回值
 
-**返回：**
-- `data: Ref<T | null>` - 缓存数据
-- `loading: Ref<boolean>` - 加载状态
-- `error: Ref<Error | null>` - 错误信息
-- `exists: Ref<boolean>` - 是否存在
-- `refresh: () => Promise<void>` - 刷新数据
-- `update: (value, options?) => Promise<void>` - 更新数据
-- `remove: () => Promise<void>` - 删除数据
+| 属性/方法 | 类型 | 描述 |
+|-----------|------|------|
+| `value` | `ComputedRef<T \| null>` | 缓存值 |
+| `loading` | `ComputedRef<boolean>` | 加载状态 |
+| `error` | `ComputedRef<Error \| null>` | 错误信息 |
+| `exists` | `ComputedRef<boolean>` | 是否存在 |
+| `set` | `(value, options?) => Promise<void>` | 设置值 |
+| `refresh` | `() => Promise<void>` | 刷新值 |
+| `remove` | `() => Promise<void>` | 删除值 |
 
-### useCacheStats()
+## 🔧 TypeScript 支持
 
-获取缓存统计信息。
+完整的类型定义，支持智能提示：
 
-### CacheProvider
+```typescript
+import type {
+  CachePluginOptions,
+  ReactiveCache,
+  UseCacheReturn,
+  UseCacheStatsReturn
+} from '@ldesign/cache-vue'
+```
 
-提供全局缓存实例的组件。
+全局属性类型声明（使用 Vue Plugin 后）：
 
-**Props：**
-- `cache?: CacheManager` - 缓存管理器实例
-- `options?: CacheOptions` - 缓存配置选项
+```typescript
+// 在组件中可以使用 this.$cache
+this.$cache.set('key', 'value')
+```
 
-## 许可证
+## 📄 许可证
 
 MIT License © LDesign Team
-
-

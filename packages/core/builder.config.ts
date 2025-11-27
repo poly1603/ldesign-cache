@@ -1,35 +1,20 @@
 /**
- * @ldesign/cache-core 构建配置
+ * @ldesign/cache-core Builder Configuration
+ *
+ * 框架无关的核心缓存库
+ * 支持多种淘汰策略和存储引擎
  */
 import { defineConfig } from '@ldesign/builder'
 
 export default defineConfig({
   entry: 'src/index.ts',
   output: {
-    formats: ['esm', 'cjs', 'umd'],
-    name: 'LDesignCacheCore',
-    dir: {
-      esm: 'es',
-      cjs: 'lib',
-      umd: 'dist',
-    },
-    fileName: {
-      esm: '[name].js',
-      cjs: '[name].js',
-      umd: 'cache-core.umd.js',
-    },
+    formats: ['esm', 'cjs', 'dts'],
   },
-  external: [],
   dts: {
     enabled: true,
-    outDir: 'dist',
   },
-  minify: {
-    enabled: true,
-    formats: ['umd'],
-  },
+  external: [],
+  minify: false, // 保持可读性，便于调试
   sourcemap: true,
-  clean: true,
 })
-
-

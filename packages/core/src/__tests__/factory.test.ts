@@ -1,11 +1,11 @@
 /**
  * Factory 函数测试
  */
-import { describe, it, expect } from 'vitest'
-import { createCache, getDefaultCache, cache } from '../factory'
+import { describe, expect, it } from 'vitest'
 import { CacheManager } from '../core/cache-manager'
+import { cache, createCache, getDefaultCache } from '../factory'
 
-describe('Factory Functions', () => {
+describe('factory Functions', () => {
   describe('createCache', () => {
     it('应该创建 CacheManager 实例', () => {
       const instance = createCache()
@@ -92,4 +92,3 @@ describe('Factory Functions', () => {
     })
   })
 })
-

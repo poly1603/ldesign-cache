@@ -1,86 +1,93 @@
 /**
  * @ldesign/cache-core
- * 
- * Framework-agnostic cache management system
+ *
+ * 框架无关的缓存管理核心库
+ *
+ * 提供高性能的缓存管理功能，支持多种存储引擎和智能策略
+ *
+ * @module @ldesign/cache-core
+ * @version 0.2.0
+ * @author ldesign
+ * @license MIT
+ *
+ * @example
+ * ```typescript
+ * import { createCache, cache } from '@ldesign/cache-core'
+ *
+ * // 创建缓存实例
+ * const myCache = createCache({
+ *   defaultEngine: 'memory',
+ *   defaultTTL: 60 * 1000
+ * })
+ *
+ * // 使用便捷 API
+ * await cache.set('user', { name: '张三' })
+ * const user = await cache.get('user')
+ * ```
  */
 
-// 核心管理器
+// ==================== 类型导出 ====================
+
+/**
+ * 性能相关常量
+ */
+export * from './constants'
+
+// ==================== 常量导出 ====================
+
+/**
+ * 缓存管理器类
+ * @see {@link CacheManager}
+ */
 export { CacheManager } from './core/cache-manager'
-export { createCache, getDefaultCache, cache } from './factory'
 
-// 分析和监控
-export { CacheAnalyzer, createCacheAnalyzer } from './core/cache-analyzer'
-export { MemoryManager, createMemoryManager } from './core/memory-manager'
-export { PerformanceMonitor } from './core/performance-monitor'
-export { PerformanceTracker } from './core/performance-tracker'
+// ==================== 工具函数导出 ====================
 
-// 命名空间和标签
-export { CacheNamespace, createNamespace } from './core/namespace-manager'
-export { TagManager, createTagManager } from './core/tag-manager'
+/**
+ * 存储引擎
+ */
+export * from './engines'
 
-// 智能功能
-export { PrefetchManager, createPrefetchManager } from './core/prefetch-manager'
-export { PredictiveCache, createPredictiveCache } from './core/predictive-cache'
+// ==================== 策略导出 ====================
 
-// 插件系统
-export {
-  PluginManager,
-  createLoggingPlugin,
-  createPerformancePlugin,
-  createStatsPlugin,
-} from './core/plugin-system'
+/**
+ * 工厂函数和便捷 API
+ * @see {@link createCache}
+ * @see {@link getDefaultCache}
+ * @see {@link cache}
+ */
+export { cache, createCache, getDefaultCache } from './factory'
 
-// 快照和版本
-export { SnapshotManager, createSnapshotManager } from './core/snapshot-manager'
-export { VersionManager, createVersionManager } from './core/version-manager'
+// ==================== 存储引擎导出 ====================
 
-// 同步功能
-export { SyncManager } from './core/sync-manager'
-export {
-  RemoteSyncManager,
-  WebSocketTransport,
-  PollingTransport,
-  SSETransport,
-} from './core/remote-sync-adapter'
+/**
+ * 预设配置函数
+ * @see {@link getPresetOptions}
+ */
+export { getPresetOptions } from './presets'
 
-// 预热功能
-export { WarmupManager, createWarmupManager } from './core/warmup-manager'
+// ==================== 核心管理器 ====================
 
-// 存储引擎
-export { BaseStorageEngine } from './engines/base-engine'
-export { StorageEngineFactory } from './engines/factory'
-export { MemoryEngine } from './engines/memory-engine'
-export { LocalStorageEngine } from './engines/local-storage-engine'
-export { SessionStorageEngine } from './engines/session-storage-engine'
-export { IndexedDBEngine } from './engines/indexeddb-engine'
-export { CookieEngine } from './engines/cookie-engine'
-export { OPFSEngine } from './engines/opfs-engine'
+/**
+ * 淘汰策略
+ */
+export * from './strategies'
 
-// 策略
-export * from './strategies/eviction-strategies'
-export { StorageStrategy } from './strategies/storage-strategy'
-export { AdaptiveStorageStrategy, createAdaptiveStrategy } from './strategies/adaptive-strategy'
+/**
+ * 所有类型定义
+ */
+export * from './types'
 
-// 安全功能
-export { AESCrypto } from './security/aes-crypto'
-export { KeyObfuscator } from './security/key-obfuscator'
-export { SecurityManager } from './security/security-manager'
+// ==================== 预设配置 ====================
 
-// 工具函数
+/**
+ * 工具函数
+ */
 export * from './utils'
-export * from './helpers'
 
-// 类型导出
-export type * from './types'
+// ==================== 版本信息 ====================
 
-// 预设配置
-export {
-  createBrowserCache,
-  createNodeCache,
-  createOfflineCache,
-  createSSRCache,
-  getPresetOptions,
-} from './presets'
-
-// 版本
+/**
+ * 当前版本号
+ */
 export const version = '0.2.0'

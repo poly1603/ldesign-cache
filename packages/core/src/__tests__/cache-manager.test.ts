@@ -1,10 +1,10 @@
 /**
  * CacheManager 测试
  */
-import { describe, it, expect, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { CacheManager } from '../core/cache-manager'
 
-describe('CacheManager', () => {
+describe('cacheManager', () => {
   let cache: CacheManager
 
   beforeEach(() => {
@@ -102,4 +102,3 @@ describe('CacheManager', () => {
     })
   })
 })
-

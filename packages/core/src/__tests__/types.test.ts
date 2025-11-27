@@ -1,18 +1,18 @@
+import type {
+  CacheItem,
+  CacheOptions,
+  CacheStats,
+  IStorageEngine,
+  SerializableValue,
+  SetOptions,
+  StorageEngine,
+} from '../types'
 /**
  * 类型定义测试
  */
-import { describe, it, expect } from 'vitest'
-import type {
-  SerializableValue,
-  StorageEngine,
-  CacheOptions,
-  SetOptions,
-  CacheStats,
-  CacheItem,
-  IStorageEngine,
-} from '../types'
+import { describe, expect, it } from 'vitest'
 
-describe('Types', () => {
+describe('types', () => {
   it('应该正确定义 SerializableValue 类型', () => {
     const stringValue: SerializableValue = 'test'
     const numberValue: SerializableValue = 123
@@ -97,11 +97,11 @@ describe('Types', () => {
 
   it('应该正确定义 IStorageEngine 接口', () => {
     const engine: IStorageEngine = {
-      get: async (key: string) => null,
-      set: async (key: string, value: any, options?: SetOptions) => { },
-      remove: async (key: string) => { },
+      get: async (_key: string) => null,
+      set: async (_key: string, _value: any, _options?: SetOptions) => { },
+      remove: async (_key: string) => { },
       clear: async () => { },
-      has: async (key: string) => false,
+      has: async (_key: string) => false,
       keys: async () => [],
     }
 
@@ -113,4 +113,3 @@ describe('Types', () => {
     expect(typeof engine.keys).toBe('function')
   })
 })
-

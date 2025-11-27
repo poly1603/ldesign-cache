@@ -1,99 +1,55 @@
 /**
  * Vue 集成类型定义
+ *
+ * @module types
  */
-import type { Ref } from 'vue'
-import type { CacheManager, CacheOptions, SetOptions, SerializableValue } from '@ldesign/cache-core'
+import type { CacheManager, CacheOptions } from '@ldesign/cache-core'
 
 /**
- * useCache 选项
+ * useCache 配置选项
+ *
+ * @example
+ * ```typescript
+ * const options: UseCacheOptions = {
+ *   immediate: true,
+ *   refreshInterval: 5000
+ * }
+ * ```
  */
-export interface UseCacheOptions<T = any> extends SetOptions {
+export interface UseCacheOptions extends CacheOptions {
   /**
-   * 是否立即加载
+   * 是否立即加载缓存数据
    * @default true
    */
   immediate?: boolean
 
   /**
-   * 初始值
-   */
-  initialValue?: T
-
-  /**
-   * 是否深度响应
-   * @default false
-   */
-  deep?: boolean
-
-  /**
    * 自动刷新间隔（毫秒）
+   * 设置后会定期刷新缓存数据
    */
   refreshInterval?: number
-
-  /**
-   * 数据获取函数
-   */
-  fetcher?: () => Promise<T> | T
-}
-
-/**
- * useCache 返回值
- */
-export interface UseCacheReturn<T = any> {
-  /**
-   * 缓存数据
-   */
-  data: Ref<T | null>
-
-  /**
-   * 加载状态
-   */
-  loading: Ref<boolean>
-
-  /**
-   * 错误信息
-   */
-  error: Ref<Error | null>
-
-  /**
-   * 是否存在
-   */
-  exists: Ref<boolean>
-
-  /**
-   * 刷新数据
-   */
-  refresh: () => Promise<void>
-
-  /**
-   * 更新数据
-   */
-  update: (value: T, options?: SetOptions) => Promise<void>
-
-  /**
-   * 删除数据
-   */
-  remove: () => Promise<void>
-
-  /**
-   * 清空错误
-   */
-  clearError: () => void
 }
 
 /**
  * CacheProvider 组件属性
+ *
+ * @example
+ * ```vue
+ * <CacheProvider :options="{ defaultTTL: 60000 }">
+ *   <App />
+ * </CacheProvider>
+ * ```
  */
 export interface CacheProviderProps {
   /**
    * 缓存管理器实例
+   * 如果提供，将使用此实例而不是创建新实例
    */
   cache?: CacheManager
 
   /**
    * 缓存配置选项
+   * 仅在未提供 cache 实例时使用
    */
   options?: CacheOptions
 }
-
-

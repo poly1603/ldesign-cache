@@ -21,6 +21,21 @@
       "import": "./es/index.js",
       "require": "./lib/index.cjs"
     },
+    "./constants": {
+      "types": "./es/constants/index.d.ts",
+      "import": "./es/constants/index.js",
+      "require": "./lib/constants/index.cjs"
+    },
+    "./constants/*": {
+      "types": "./es/constants/*.d.ts",
+      "import": "./es/constants/*.js",
+      "require": "./lib/constants/*.cjs"
+    },
+    "./core/*": {
+      "types": "./es/core/*.d.ts",
+      "import": "./es/core/*.js",
+      "require": "./lib/core/*.cjs"
+    },
     "./engines": {
       "types": "./es/engines/index.d.ts",
       "import": "./es/engines/index.js",
@@ -41,6 +56,16 @@
       "import": "./es/strategies/*.js",
       "require": "./lib/strategies/*.cjs"
     },
+    "./types": {
+      "types": "./es/types/index.d.ts",
+      "import": "./es/types/index.js",
+      "require": "./lib/types/index.cjs"
+    },
+    "./types/*": {
+      "types": "./es/types/*.d.ts",
+      "import": "./es/types/*.js",
+      "require": "./lib/types/*.cjs"
+    },
     "./utils": {
       "types": "./es/utils/index.d.ts",
       "import": "./es/utils/index.js",
@@ -51,42 +76,17 @@
       "import": "./es/utils/*.js",
       "require": "./lib/utils/*.cjs"
     },
-    "./core": {
-      "types": "./es/core/index.d.ts",
-      "import": "./es/core/index.js",
-      "require": "./lib/core/index.cjs"
-    },
-    "./core/*": {
-      "types": "./es/core/*.d.ts",
-      "import": "./es/core/*.js",
-      "require": "./lib/core/*.cjs"
-    },
-    "./security": {
-      "types": "./es/security/index.d.ts",
-      "import": "./es/security/index.js",
-      "require": "./lib/security/index.cjs"
-    },
-    "./security/*": {
-      "types": "./es/security/*.d.ts",
-      "import": "./es/security/*.js",
-      "require": "./lib/security/*.cjs"
-    },
-    "./types": {
-      "types": "./es/types/index.d.ts",
-      "import": "./es/types/index.js",
-      "require": "./lib/types/index.cjs"
-    },
-    "./types/*": {
-      "types": "./es/types/*.d.ts",
-      "import": "./es/types/*.js",
-      "require": "./lib/types/*.cjs"
+    "./__tests__/*": {
+      "types": "./es/__tests__/*.d.ts",
+      "import": "./es/__tests__/*.js",
+      "require": "./lib/__tests__/*.cjs"
     }
   },
   "main": "./lib/index.cjs",
   "module": "./es/index.js",
   "types": "./es/index.d.ts",
-  "unpkg": "./dist/cache-core.min.js",
-  "jsdelivr": "./dist/cache-core.min.js",
+  "unpkg": "./dist/index.min.js",
+  "jsdelivr": "./dist/index.min.js",
   "files": [
     "README.md",
     "LICENSE",
@@ -96,16 +96,16 @@
     "dist"
   ],
   "scripts": {
-    "dev": "ldesign-builder build -f esm,cjs,dts --watch",
-    "build": "ldesign-builder build -f esm,cjs,dts",
-    "build:clean": "ldesign-builder clean && ldesign-builder build -f esm,cjs,dts",
+    "build": "ldesign-builder build",
+    "dev": "tsc --watch",
     "type-check": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "lint": "eslint . --fix",
-    "lint:check": "eslint ."
+    "lint:check": "eslint .",
+    "clean": "node -e \"const fs=require('fs'); ['es','lib','dist','.tsbuildinfo'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch{}})\""
   },
   "dependencies": {
     "idb": "^8.0.2"

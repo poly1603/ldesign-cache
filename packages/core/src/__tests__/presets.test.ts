@@ -1,7 +1,7 @@
 /**
  * Presets 测试
  */
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   createBrowserCache,
   createNodeCache,
@@ -10,7 +10,7 @@ import {
   getPresetOptions,
 } from '../presets'
 
-describe('Presets', () => {
+describe('presets', () => {
   describe('createBrowserCache', () => {
     it('应该返回浏览器环境配置', () => {
       const config = createBrowserCache()
@@ -76,4 +76,3 @@ describe('Presets', () => {
     })
   })
 })
-

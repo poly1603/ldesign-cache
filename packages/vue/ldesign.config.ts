@@ -34,9 +34,7 @@ export default defineConfig({
   ],
 
   globals: {
-    vue: 'Vue',
+    'vue': 'Vue',
     '@ldesign/cache-core': 'LDesignCacheCore',
   },
 })
-
-
