@@ -16,22 +16,90 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    }
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./es/index.js"
+    },
+    "./components": {
+      "types": "./es/components/index.d.ts",
+      "import": "./es/components/index.js",
+      "require": "./lib/components/index.cjs",
+      "default": "./es/components/index.js"
+    },
+    "./components/*": {
+      "types": "./es/components/*.d.ts",
+      "import": "./es/components/*.js",
+      "require": "./lib/components/*.cjs",
+      "default": "./es/components/*.js"
+    },
+    "./composables": {
+      "types": "./es/composables/index.d.ts",
+      "import": "./es/composables/index.js",
+      "require": "./lib/composables/index.cjs",
+      "default": "./es/composables/index.js"
+    },
+    "./composables/*": {
+      "types": "./es/composables/*.d.ts",
+      "import": "./es/composables/*.js",
+      "require": "./lib/composables/*.cjs",
+      "default": "./es/composables/*.js"
+    },
+    "./decorators": {
+      "types": "./es/decorators/index.d.ts",
+      "import": "./es/decorators/index.js",
+      "require": "./lib/decorators/index.cjs",
+      "default": "./es/decorators/index.js"
+    },
+    "./decorators/*": {
+      "types": "./es/decorators/*.d.ts",
+      "import": "./es/decorators/*.js",
+      "require": "./lib/decorators/*.cjs",
+      "default": "./es/decorators/*.js"
+    },
+    "./directives": {
+      "types": "./es/directives/index.d.ts",
+      "import": "./es/directives/index.js",
+      "require": "./lib/directives/index.cjs",
+      "default": "./es/directives/index.js"
+    },
+    "./directives/*": {
+      "types": "./es/directives/*.d.ts",
+      "import": "./es/directives/*.js",
+      "require": "./lib/directives/*.cjs",
+      "default": "./es/directives/*.js"
+    },
+    "./types": {
+      "types": "./es/types/index.d.ts",
+      "import": "./es/types/index.js",
+      "require": "./lib/types/index.cjs",
+      "default": "./es/types/index.js"
+    },
+    "./types/*": {
+      "types": "./es/types/*.d.ts",
+      "import": "./es/types/*.js",
+      "require": "./lib/types/*.cjs",
+      "default": "./es/types/*.js"
+    },
+    "./package.json": "./package.json"
   },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.min.js",
+  "jsdelivr": "./dist/index.min.js",
   "files": [
-    "dist",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "es",
+    "lib",
+    "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "clean": "rimraf dist es lib"
+    "build": "ldesign-builder build",
+    "dev": "ldesign-builder build --watch",
+    "clean": "rimraf es lib dist"
   },
   "dependencies": {
     "@ldesign/cache-core": "workspace:*"
@@ -40,10 +108,12 @@
     "vue": "^3.3.0"
   },
   "devDependencies": {
-    "tsup": "^8.0.0",
+    "@ldesign/builder": "workspace:*",
+    "@vitejs/plugin-vue": "^5.0.0",
     "typescript": "^5.7.3",
     "rimraf": "^5.0.0",
     "vue": "^3.3.0"
-  }
+  },
+  "typings": "./es/index.d.ts",
+  "browser": "./dist/index.js"
 }
-

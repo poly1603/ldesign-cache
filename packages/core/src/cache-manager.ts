@@ -137,14 +137,19 @@ export class CacheManager<T = any> {
    * @param ttl - 过期时间（毫秒），覆盖默认 TTL
    */
   set(key: string, value: T, ttl?: number): void {
-    const evicted = this.strategy.set(key, value, ttl)
+    // 记录设置前的大小，用于检测是否发生淘汰
+    const sizeBefore = this.strategy.size
+    const wasAtCapacity = sizeBefore >= this.options.maxSize
 
-    // 处理淘汰
-    if (evicted && typeof evicted === 'object' && 'key' in evicted) {
+    this.strategy.set(key, value, ttl)
+
+    // 如果之前已满且没有增加大小，说明发生了淘汰
+    if (wasAtCapacity && this.strategy.size <= sizeBefore) {
       if (this.options.enableStats) {
         this.stats.evictions++
       }
-      this.emit(CacheEventType.EVICT, { key: evicted.key, value: evicted.value })
+      // 无法获取具体淘汰的项，只发送通知
+      this.emit(CacheEventType.EVICT, { key: '', value: undefined as unknown as T })
     }
 
     // 更新统计

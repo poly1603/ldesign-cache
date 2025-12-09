@@ -35,11 +35,12 @@
     
     "baseUrl": ".",
     "paths": {
-      "@ldesign/cache/core": ["../core/src/index.ts"]
+      "@ldesign/cache-core": ["../core/src/index.ts"]
     }
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "src/**/*.vue"
   ],
   "exclude": [
     "node_modules",

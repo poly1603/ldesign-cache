@@ -18,26 +18,120 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/cjs/index.js"
-    }
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./es/index.js"
+    },
+    "./constants": {
+      "types": "./es/constants/index.d.ts",
+      "import": "./es/constants/index.js",
+      "require": "./lib/constants/index.cjs",
+      "default": "./es/constants/index.js"
+    },
+    "./constants/*": {
+      "types": "./es/constants/*.d.ts",
+      "import": "./es/constants/*.js",
+      "require": "./lib/constants/*.cjs",
+      "default": "./es/constants/*.js"
+    },
+    "./plugins": {
+      "types": "./es/plugins/index.d.ts",
+      "import": "./es/plugins/index.js",
+      "require": "./lib/plugins/index.cjs",
+      "default": "./es/plugins/index.js"
+    },
+    "./plugins/*": {
+      "types": "./es/plugins/*.d.ts",
+      "import": "./es/plugins/*.js",
+      "require": "./lib/plugins/*.cjs",
+      "default": "./es/plugins/*.js"
+    },
+    "./serializers": {
+      "types": "./es/serializers/index.d.ts",
+      "import": "./es/serializers/index.js",
+      "require": "./lib/serializers/index.cjs",
+      "default": "./es/serializers/index.js"
+    },
+    "./serializers/*": {
+      "types": "./es/serializers/*.d.ts",
+      "import": "./es/serializers/*.js",
+      "require": "./lib/serializers/*.cjs",
+      "default": "./es/serializers/*.js"
+    },
+    "./storage": {
+      "types": "./es/storage/index.d.ts",
+      "import": "./es/storage/index.js",
+      "require": "./lib/storage/index.cjs",
+      "default": "./es/storage/index.js"
+    },
+    "./storage/*": {
+      "types": "./es/storage/*.d.ts",
+      "import": "./es/storage/*.js",
+      "require": "./lib/storage/*.cjs",
+      "default": "./es/storage/*.js"
+    },
+    "./strategies": {
+      "types": "./es/strategies/index.d.ts",
+      "import": "./es/strategies/index.js",
+      "require": "./lib/strategies/index.cjs",
+      "default": "./es/strategies/index.js"
+    },
+    "./strategies/*": {
+      "types": "./es/strategies/*.d.ts",
+      "import": "./es/strategies/*.js",
+      "require": "./lib/strategies/*.cjs",
+      "default": "./es/strategies/*.js"
+    },
+    "./types": {
+      "types": "./es/types/index.d.ts",
+      "import": "./es/types/index.js",
+      "require": "./lib/types/index.cjs",
+      "default": "./es/types/index.js"
+    },
+    "./types/*": {
+      "types": "./es/types/*.d.ts",
+      "import": "./es/types/*.js",
+      "require": "./lib/types/*.cjs",
+      "default": "./es/types/*.js"
+    },
+    "./utils": {
+      "types": "./es/utils/index.d.ts",
+      "import": "./es/utils/index.js",
+      "require": "./lib/utils/index.cjs",
+      "default": "./es/utils/index.js"
+    },
+    "./utils/*": {
+      "types": "./es/utils/*.d.ts",
+      "import": "./es/utils/*.js",
+      "require": "./lib/utils/*.cjs",
+      "default": "./es/utils/*.js"
+    },
+    "./package.json": "./package.json"
   },
-  "main": "./dist/cjs/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.min.js",
+  "jsdelivr": "./dist/index.min.js",
   "files": [
-    "dist",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "es",
+    "lib",
+    "dist"
   ],
   "scripts": {
-    "build": "tsc && tsc -p tsconfig.cjs.json",
-    "dev": "tsc --watch",
-    "clean": "rimraf dist"
+    "build": "ldesign-builder build",
+    "dev": "ldesign-builder build --watch",
+    "clean": "rimraf es lib dist"
   },
   "devDependencies": {
+    "@ldesign/builder": "workspace:*",
     "typescript": "^5.7.3",
     "rimraf": "^5.0.0"
-  }
+  },
+  "typings": "./es/index.d.ts",
+  "browser": "./dist/index.js"
 }
-

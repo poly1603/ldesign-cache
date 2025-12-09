@@ -3,5 +3,5 @@
  * @module @ldesign/cache/vue/components
  */
 
-export { default as CacheProvider } from './CacheProvider.vue'
+export { CacheProvider, CacheProvider as default } from './CacheProvider'
 

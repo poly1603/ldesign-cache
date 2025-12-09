@@ -348,7 +348,11 @@ export class LFUCache<T = any> {
     }
 
     // 获取第一个键（最早添加的）
-    const keyToEvict = minFreqSet.values().next().value
+    const keyToEvict = minFreqSet.values().next().value as string | undefined
+    if (!keyToEvict) {
+      return undefined
+    }
+
     const node = this.cache.get(keyToEvict)
 
     if (node) {
