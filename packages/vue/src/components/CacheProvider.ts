@@ -1,7 +1,7 @@
 /**
  * CacheProvider 组件
  * 
- * 提供缓存上下文给子组件
+ * 提供缓存上下文给子组�?
  * 
  * @module @ldesign/cache/vue/components/CacheProvider
  */
@@ -14,7 +14,7 @@ import { CACHE_INJECTION_KEY } from '../plugin'
 /**
  * CacheProvider 组件
  * 
- * 提供缓存上下文给子组件使用
+ * 提供缓存上下文给子组件使�?
  */
 export const CacheProvider = defineComponent({
   name: 'CacheProvider',

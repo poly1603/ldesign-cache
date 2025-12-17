@@ -1,15 +1,15 @@
 /**
- * 缓存状态管理 Composable
+ * 缓存状态管�?Composable
  * 
- * 提供响应式的缓存状态管理
+ * 提供响应式的缓存状态管�?
  * 
  * @module @ldesign/cache/vue/composables/use-cache-state
  */
 
 import type { Ref } from 'vue'
 import { computed, ref, watch } from 'vue'
-import type { CacheManager } from '@ldesign/cache/core'
-import { CacheEventType } from '@ldesign/cache/core'
+import type { CacheManager } from '@ldesign/cache-core'
+import { CacheEventType } from '@ldesign/cache-core'
 
 /**
  * 缓存状态选项
@@ -22,29 +22,29 @@ export interface UseCacheStateOptions {
 }
 
 /**
- * 缓存状态返回值
+ * 缓存状态返回�?
  */
 export interface UseCacheStateReturn {
   /** 缓存大小 */
   size: Ref<number>
   /** 所有键 */
   keys: Ref<string[]>
-  /** 命中率 */
+  /** 命中�?*/
   hitRate: Ref<number>
   /** 是否为空 */
   isEmpty: Ref<boolean>
   /** 是否已满 */
   isFull: Ref<boolean>
-  /** 刷新状态 */
+  /** 刷新状�?*/
   refresh: () => void
 }
 
 /**
- * 使用缓存状态
+ * 使用缓存状�?
  * 
- * @param cache - 缓存管理器实例
+ * @param cache - 缓存管理器实�?
  * @param options - 选项
- * @returns 缓存状态
+ * @returns 缓存状�?
  * 
  * @example
  * ```vue
@@ -58,7 +58,7 @@ export interface UseCacheStateReturn {
  * <template>
  *   <div>
  *     <p>缓存大小: {{ size }}</p>
- *     <p>命中率: {{ (hitRate * 100).toFixed(2) }}%</p>
+ *     <p>命中�? {{ (hitRate * 100).toFixed(2) }}%</p>
  *     <p>是否为空: {{ isEmpty }}</p>
  *   </div>
  * </template>
@@ -70,18 +70,18 @@ export function useCacheState<T = any>(
 ): UseCacheStateReturn {
   const { autoSync = true, syncInterval = 1000 } = options
 
-  // 响应式状态
+  // 响应式状�?
   const size = ref(cache.size)
   const keys = ref(cache.keys())
   const stats = ref(cache.getStats())
 
-  // 计算属性
+  // 计算属�?
   const hitRate = computed(() => stats.value.hitRate)
   const isEmpty = computed(() => size.value === 0)
   const isFull = computed(() => size.value >= stats.value.maxSize)
 
   /**
-   * 刷新状态
+   * 刷新状�?
    */
   function refresh(): void {
     size.value = cache.size

@@ -1,18 +1,18 @@
 /**
- * @Cacheable 装饰器
+ * @Cacheable 装饰�?
  * 
- * 用于方法级别的缓存
+ * 用于方法级别的缓�?
  * 
  * @module @ldesign/cache/vue/decorators/cacheable
  */
 
-import type { CacheManager } from '@ldesign/cache/core'
+import type { CacheManager } from '@ldesign/cache-core'
 
 /**
  * Cacheable 装饰器选项
  */
 export interface CacheableOptions {
-  /** 缓存管理器实例 */
+  /** 缓存管理器实�?*/
   cache: CacheManager
   /** 缓存键生成函数，默认使用方法名和参数生成 */
   keyGenerator?: (...args: any[]) => string
@@ -26,9 +26,9 @@ export interface CacheableOptions {
 
 /**
  * 默认键生成器
- * @param methodName - 方法名
+ * @param methodName - 方法�?
  * @param args - 方法参数
- * @returns 缓存键
+ * @returns 缓存�?
  */
 function defaultKeyGenerator(methodName: string, ...args: any[]): string {
   const argsKey = args.length > 0 ? `:${JSON.stringify(args)}` : ''
@@ -36,17 +36,17 @@ function defaultKeyGenerator(methodName: string, ...args: any[]): string {
 }
 
 /**
- * @Cacheable 装饰器
+ * @Cacheable 装饰�?
  * 
- * 用于缓存方法的返回值
+ * 用于缓存方法的返回�?
  * 
  * @param options - 装饰器选项
- * @returns 方法装饰器
+ * @returns 方法装饰�?
  * 
  * @example
  * ```typescript
  * import { Cacheable } from '@ldesign/cache/vue'
- * import { createCacheManager } from '@ldesign/cache/core'
+ * import { createCacheManager } from '@ldesign/cache-core'
  * 
  * const cache = createCacheManager()
  * 
@@ -86,21 +86,21 @@ export function Cacheable(options: CacheableOptions) {
     const originalMethod = descriptor.value
 
     descriptor.value = async function (...args: any[]) {
-      // 生成缓存键
+      // 生成缓存�?
       const cacheKey = keyGenerator
         ? keyGenerator(...args)
         : defaultKeyGenerator(propertyKey, ...args)
 
-      // 尝试从缓存获取
+      // 尝试从缓存获�?
       const cached = cache.get(cacheKey)
       if (cached !== undefined) {
         return cached
       }
 
-      // 执行原方法
+      // 执行原方�?
       const result = await originalMethod.apply(this, args)
 
-      // 检查是否应该缓存结果
+      // 检查是否应该缓存结�?
       const shouldCache
         = result !== undefined
         || (result === undefined && cacheUndefined)
@@ -118,9 +118,9 @@ export function Cacheable(options: CacheableOptions) {
 }
 
 /**
- * 创建 Cacheable 装饰器
- * @param cache - 缓存管理器实例
- * @returns Cacheable 装饰器工厂
+ * 创建 Cacheable 装饰�?
+ * @param cache - 缓存管理器实�?
+ * @returns Cacheable 装饰器工�?
  */
 export function createCacheable(cache: CacheManager) {
   return function (options?: Omit<CacheableOptions, 'cache'>) {

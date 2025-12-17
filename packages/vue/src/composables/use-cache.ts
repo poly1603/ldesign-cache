@@ -8,41 +8,41 @@
 
 import type { Ref } from 'vue'
 import { computed, onUnmounted, ref, shallowRef } from 'vue'
-import type { CacheEventType, CacheOptions, CacheStats } from '@ldesign/cache/core'
-import { CacheManager } from '@ldesign/cache/core'
+import type { CacheEventType, CacheOptions, CacheStats } from '@ldesign/cache-core'
+import { CacheManager } from '@ldesign/cache-core'
 
 /**
  * useCache 选项
  */
 export interface UseCacheOptions extends CacheOptions {
-  /** 是否自动清理（组件卸载时） */
+  /** 是否自动清理（组件卸载时�?*/
   autoCleanup?: boolean
-  /** 是否启用响应式统计 */
+  /** 是否启用响应式统�?*/
   reactiveStats?: boolean
 }
 
 /**
- * useCache 返回值
- * @template T - 缓存值类型
+ * useCache 返回�?
+ * @template T - 缓存值类�?
  */
 export interface UseCacheReturn<T = any> {
-  /** 缓存管理器实例 */
+  /** 缓存管理器实�?*/
   cache: CacheManager<T>
-  /** 获取缓存项 */
+  /** 获取缓存�?*/
   get: (key: string) => T | undefined
-  /** 设置缓存项 */
+  /** 设置缓存�?*/
   set: (key: string, value: T, ttl?: number) => void
-  /** 删除缓存项 */
+  /** 删除缓存�?*/
   delete: (key: string) => boolean
   /** 检查缓存项是否存在 */
   has: (key: string) => boolean
-  /** 清空所有缓存 */
+  /** 清空所有缓�?*/
   clear: () => void
-  /** 缓存大小（响应式） */
+  /** 缓存大小（响应式�?*/
   size: Ref<number>
-  /** 所有键（响应式） */
+  /** 所有键（响应式�?*/
   keys: Ref<string[]>
-  /** 统计信息（响应式） */
+  /** 统计信息（响应式�?*/
   stats: Ref<CacheStats>
   /** 批量获取 */
   mget: (keys: string[]) => Map<string, T>
@@ -50,7 +50,7 @@ export interface UseCacheReturn<T = any> {
   mset: (entries: Array<[string, T]>, ttl?: number) => void
   /** 批量删除 */
   mdel: (keys: string[]) => void
-  /** 清理过期项 */
+  /** 清理过期�?*/
   cleanup: () => number
   /** 监听事件 */
   on: (type: CacheEventType, listener: (event: any) => void) => void
@@ -61,9 +61,9 @@ export interface UseCacheReturn<T = any> {
 /**
  * Vue 缓存 Composable
  * 
- * 提供响应式的缓存操作，自动管理生命周期
+ * 提供响应式的缓存操作，自动管理生命周�?
  * 
- * @template T - 缓存值类型
+ * @template T - 缓存值类�?
  * @param options - 缓存配置选项
  * @returns 缓存操作接口
  * 
@@ -85,9 +85,9 @@ export interface UseCacheReturn<T = any> {
  * // 获取缓存
  * const user = get('user:1')
  * 
- * // 响应式统计
+ * // 响应式统�?
  * console.log('缓存大小:', size.value)
- * console.log('命中率:', stats.value.hitRate)
+ * console.log('命中�?', stats.value.hitRate)
  * </script>
  * ```
  */
@@ -98,15 +98,15 @@ export function useCache<T = any>(options: UseCacheOptions = {}): UseCacheReturn
     ...cacheOptions
   } = options
 
-  // 创建缓存管理器
+  // 创建缓存管理�?
   const cache = new CacheManager<T>(cacheOptions)
 
-  // 响应式状态
+  // 响应式状�?
   const size = ref(cache.size)
   const keys = shallowRef<string[]>([])
   const stats = ref<CacheStats>(cache.getStats())
 
-  // 更新响应式状态
+  // 更新响应式状�?
   const updateReactiveState = () => {
     size.value = cache.size
     keys.value = cache.keys()
@@ -115,7 +115,7 @@ export function useCache<T = any>(options: UseCacheOptions = {}): UseCacheReturn
     }
   }
 
-  // 监听缓存变化，更新响应式状态
+  // 监听缓存变化，更新响应式状�?
   if (reactiveStats) {
     cache.on('set', updateReactiveState)
     cache.on('delete', updateReactiveState)
@@ -124,7 +124,7 @@ export function useCache<T = any>(options: UseCacheOptions = {}): UseCacheReturn
     cache.on('expire', updateReactiveState)
   }
 
-  // 组件卸载时清理
+  // 组件卸载时清�?
   if (autoCleanup) {
     onUnmounted(() => {
       cache.destroy()

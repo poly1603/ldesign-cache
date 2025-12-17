@@ -8,21 +8,21 @@
 
 import type { Ref } from 'vue'
 import { onUnmounted, ref, watch } from 'vue'
-import type { CacheManager } from '@ldesign/cache/core'
+import type { CacheManager } from '@ldesign/cache-core'
 
 /**
  * SWR 选项
  */
 export interface UseSWROptions<T> {
-  /** 缓存键 */
+  /** 缓存�?*/
   key: string
   /** 数据获取函数 */
   fetcher: () => Promise<T>
-  /** 重新验证间隔（毫秒），0 表示禁用自动重新验证 */
+  /** 重新验证间隔（毫秒）�? 表示禁用自动重新验证 */
   revalidateInterval?: number
-  /** 窗口获得焦点时重新验证 */
+  /** 窗口获得焦点时重新验�?*/
   revalidateOnFocus?: boolean
-  /** 网络重新连接时重新验证 */
+  /** 网络重新连接时重新验�?*/
   revalidateOnReconnect?: boolean
   /** 缓存 TTL（毫秒） */
   ttl?: number
@@ -37,12 +37,12 @@ export interface UseSWROptions<T> {
 }
 
 /**
- * SWR 返回值
+ * SWR 返回�?
  */
 export interface UseSWRReturn<T> {
   /** 数据 */
   data: Ref<T | undefined>
-  /** 是否加载中 */
+  /** 是否加载�?*/
   loading: Ref<boolean>
   /** 错误信息 */
   error: Ref<Error | null>
@@ -57,7 +57,7 @@ export interface UseSWRReturn<T> {
 /**
  * 使用 SWR 缓存策略
  * 
- * @param cache - 缓存管理器实例
+ * @param cache - 缓存管理器实�?
  * @param options - SWR 选项
  * @returns SWR 结果
  * 
@@ -74,13 +74,13 @@ export interface UseSWRReturn<T> {
  *     const res = await fetch('/api/user/1')
  *     return res.json()
  *   },
- *   revalidateInterval: 30000, // 30 秒自动重新验证
+ *   revalidateInterval: 30000, // 30 秒自动重新验�?
  *   revalidateOnFocus: true,
  * })
  * </script>
  * 
  * <template>
- *   <div v-if="loading">加载中...</div>
+ *   <div v-if="loading">加载�?..</div>
  *   <div v-else-if="error">错误: {{ error.message }}</div>
  *   <div v-else>
  *     <p>{{ data }}</p>
@@ -106,7 +106,7 @@ export function useSWR<T = any>(
     revalidateOnMount = true,
   } = options
 
-  // 响应式状态
+  // 响应式状�?
   const data = ref<T>()
   const loading = ref(false)
   const error = ref<Error | null>(null)
@@ -165,7 +165,7 @@ export function useSWR<T = any>(
   }
 
   /**
-   * 初始化数据
+   * 初始化数�?
    */
   async function initialize(): Promise<void> {
     // 先尝试从缓存获取
@@ -192,7 +192,7 @@ export function useSWR<T = any>(
     }, revalidateInterval)
   }
 
-  // 窗口获得焦点时重新验证
+  // 窗口获得焦点时重新验�?
   if (revalidateOnFocus && typeof window !== 'undefined') {
     const handleFocus = () => revalidate()
     window.addEventListener('focus', handleFocus)
@@ -201,7 +201,7 @@ export function useSWR<T = any>(
     })
   }
 
-  // 网络重新连接时重新验证
+  // 网络重新连接时重新验�?
   if (revalidateOnReconnect && typeof window !== 'undefined') {
     const handleOnline = () => revalidate()
     window.addEventListener('online', handleOnline)
@@ -210,7 +210,7 @@ export function useSWR<T = any>(
     })
   }
 
-  // 清理定时器
+  // 清理定时�?
   onUnmounted(() => {
     if (revalidateTimer) {
       clearInterval(revalidateTimer)

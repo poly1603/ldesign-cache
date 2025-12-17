@@ -1,18 +1,18 @@
 /**
- * Vue 适配器类型定义
+ * Vue 适配器类型定�?
  * @module @ldesign/cache/vue/types
  */
 
 import type { InjectionKey } from 'vue'
-import type { CacheManager } from '@ldesign/cache/core'
+import type { CacheManager } from '@ldesign/cache-core'
 
 /**
- * 缓存注入键类型
+ * 缓存注入键类�?
  */
 export const CACHE_INJECTION_KEY: InjectionKey<CacheManager> = Symbol('cache')
 
 /**
- * 导出所有 composables 的类型
+ * 导出所�?composables 的类�?
  */
 export type { UseCacheOptions, UseCacheReturn } from '../composables/use-cache'
 export type { UseCacheStateOptions, UseCacheStateReturn } from '../composables/use-cache-state'
@@ -25,7 +25,7 @@ export type { UseSWROptions, UseSWRReturn } from '../composables/use-swr'
 export type { VCacheBinding } from '../directives/v-cache'
 
 /**
- * 导出装饰器类型
+ * 导出装饰器类�?
  */
 export type { CacheableOptions } from '../decorators/cacheable'
 

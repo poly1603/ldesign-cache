@@ -1,7 +1,7 @@
 /**
- * @ldesign/cache/vue - Vue 缓存适配器
+ * @ldesign/cache/vue - Vue 缓存适配�?
  * 
- * 为 Vue 3 提供响应式缓存支持
+ * �?Vue 3 提供响应式缓存支�?
  * 
  * @module @ldesign/cache/vue
  */
@@ -22,7 +22,7 @@ export * from './composables'
 export * from './directives'
 
 // ============================================================
-// Vue 装饰器
+// Vue 装饰�?
 // ============================================================
 export * from './decorators'
 

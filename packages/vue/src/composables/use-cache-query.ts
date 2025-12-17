@@ -8,13 +8,13 @@
 
 import type { Ref } from 'vue'
 import { ref, watch } from 'vue'
-import type { CacheManager } from '@ldesign/cache/core'
+import type { CacheManager } from '@ldesign/cache-core'
 
 /**
  * 查询选项
  */
 export interface UseCacheQueryOptions<T> {
-  /** 缓存键 */
+  /** 缓存�?*/
   key: string
   /** 查询函数 */
   queryFn: () => Promise<T>
@@ -31,12 +31,12 @@ export interface UseCacheQueryOptions<T> {
 }
 
 /**
- * 查询返回值
+ * 查询返回�?
  */
 export interface UseCacheQueryReturn<T> {
   /** 查询数据 */
   data: Ref<T | undefined>
-  /** 是否加载中 */
+  /** 是否加载�?*/
   loading: Ref<boolean>
   /** 错误信息 */
   error: Ref<Error | null>
@@ -51,7 +51,7 @@ export interface UseCacheQueryReturn<T> {
 /**
  * 使用缓存查询
  * 
- * @param cache - 缓存管理器实例
+ * @param cache - 缓存管理器实�?
  * @param options - 查询选项
  * @returns 查询结果
  * 
@@ -73,7 +73,7 @@ export interface UseCacheQueryReturn<T> {
  * </script>
  * 
  * <template>
- *   <div v-if="loading">加载中...</div>
+ *   <div v-if="loading">加载�?..</div>
  *   <div v-else-if="error">错误: {{ error.message }}</div>
  *   <div v-else>{{ data }}</div>
  * </template>
@@ -93,7 +93,7 @@ export function useCacheQuery<T = any>(
     retryDelay = 1000,
   } = options
 
-  // 响应式状态
+  // 响应式状�?
   const data = ref<T>()
   const loading = ref(false)
   const error = ref<Error | null>(null)
@@ -107,7 +107,7 @@ export function useCacheQuery<T = any>(
       return
     }
 
-    // 先检查缓存
+    // 先检查缓�?
     const cached = cache.get(key)
     if (cached !== undefined) {
       data.value = cached

@@ -7,15 +7,15 @@
  */
 
 import type { Directive, DirectiveBinding } from 'vue'
-import type { CacheManager } from '@ldesign/cache/core'
+import type { CacheManager } from '@ldesign/cache-core'
 
 /**
- * v-cache 指令绑定值
+ * v-cache 指令绑定�?
  */
 export interface VCacheBinding {
-  /** 缓存键 */
+  /** 缓存�?*/
   key: string
-  /** 缓存管理器实例 */
+  /** 缓存管理器实�?*/
   cache: CacheManager
   /** 数据获取函数 */
   fetcher?: () => Promise<any>
@@ -38,12 +38,12 @@ export interface VCacheBinding {
  *     {{ user }}
  *   </div>
  * 
- *   <!-- 带加载和错误状态 -->
+ *   <!-- 带加载和错误状�?-->
  *   <div v-cache="{
  *     key: 'posts',
  *     cache,
  *     fetcher: fetchPosts,
- *     loading: '加载中...',
+ *     loading: '加载�?..',
  *     error: '加载失败'
  *   }">
  *     {{ posts }}
@@ -53,10 +53,10 @@ export interface VCacheBinding {
  */
 export const vCache: Directive<HTMLElement, VCacheBinding> = {
   async mounted(el: HTMLElement, binding: DirectiveBinding<VCacheBinding>) {
-    const { key, cache, fetcher, ttl, loading = '加载中...', error: errorText = '加载失败' } = binding.value
+    const { key, cache, fetcher, ttl, loading = '加载�?..', error: errorText = '加载失败' } = binding.value
 
     if (!key || !cache) {
-      console.warn('[v-cache] 缺少必需的 key 或 cache 参数')
+      console.warn('[v-cache] 缺少必需�?key �?cache 参数')
       return
     }
 
@@ -67,12 +67,12 @@ export const vCache: Directive<HTMLElement, VCacheBinding> = {
       return
     }
 
-    // 如果没有 fetcher，则不执行任何操作
+    // 如果没有 fetcher，则不执行任何操�?
     if (!fetcher) {
       return
     }
 
-    // 显示加载状态
+    // 显示加载状�?
     const originalContent = el.textContent
     el.textContent = loading
 

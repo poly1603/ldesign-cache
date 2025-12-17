@@ -1,17 +1,17 @@
 /**
  * Vue 缓存插件
  * 
- * 提供全局缓存实例和注入功能
+ * 提供全局缓存实例和注入功�?
  * 
  * @module @ldesign/cache/vue/plugin
  */
 
 import type { App, InjectionKey } from 'vue'
-import type { CacheOptions } from '@ldesign/cache/core'
-import { CacheManager } from '@ldesign/cache/core'
+import type { CacheOptions } from '@ldesign/cache-core'
+import { CacheManager } from '@ldesign/cache-core'
 
 /**
- * 缓存注入键
+ * 缓存注入�?
  */
 export const CACHE_INJECTION_KEY: InjectionKey<CacheManager> = Symbol('cache')
 
@@ -28,7 +28,7 @@ export interface CachePluginOptions extends CacheOptions {
 /**
  * Vue 缓存插件
  * 
- * 提供全局缓存实例，可通过 inject 或 this.$cache 访问
+ * 提供全局缓存实例，可通过 inject �?this.$cache 访问
  * 
  * @example
  * ```typescript
@@ -46,7 +46,7 @@ export interface CachePluginOptions extends CacheOptions {
  * })
  * ```
  * 
- * 在组件中使用：
+ * 在组件中使用�?
  * ```vue
  * <script setup lang="ts">
  * import { inject } from 'vue'
@@ -65,7 +65,7 @@ export interface CachePluginOptions extends CacheOptions {
  * <script>
  * export default {
  *   mounted() {
- *     // 使用全局属性
+ *     // 使用全局属�?
  *     this.$cache.set('key', 'value')
  *     const value = this.$cache.get('key')
  *   }
@@ -84,12 +84,12 @@ export const CachePlugin = {
     // 创建全局缓存实例
     const cache = new CacheManager(cacheOptions)
 
-    // 注入到组件
+    // 注入到组�?
     if (inject) {
       app.provide(CACHE_INJECTION_KEY, cache)
     }
 
-    // 添加全局属性
+    // 添加全局属�?
     if (globalPropertyName) {
       app.config.globalProperties[globalPropertyName] = cache
     }
@@ -119,7 +119,7 @@ export function createCachePlugin(options: CachePluginOptions = {}) {
 /**
  * TypeScript 类型扩展
  * 
- * 为 Vue 组件实例添加 $cache 类型
+ * �?Vue 组件实例添加 $cache 类型
  */
 declare module '@vue/runtime-core' {
   export interface ComponentCustomProperties {
