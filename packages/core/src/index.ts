@@ -10,22 +10,39 @@
 // 类型定义
 // ============================================================
 export type {
+  // 核心类型
   CacheItem,
+  CacheItemMetadata,
   CacheOptions,
   CacheStats,
+  ReadonlyCacheItem,
+  CacheableValue,
+  StorageType,
+  SetOptions,
+  CachePluginContext,
+  // 事件类型
   CacheEvent,
   CacheEventListener,
+  // 批量操作类型
   BatchOptions,
   BatchResult,
+  BatchFailure,
+  BatchSetEntry,
+  // 接口类型
   Serializer,
   CachePlugin,
   ICacheStrategy,
+  // 统计类型
   PerformanceMetrics,
+  // 错误类型
+  CacheError,
+  EvictionReason,
 } from './types'
 
 export {
   CacheStrategy,
   CacheEventType,
+  CacheErrorCode,
 } from './types'
 
 // ============================================================
@@ -57,12 +74,14 @@ export {
 // ============================================================
 // 存储适配器
 // ============================================================
-export type { IStorageAdapter } from './storage'
+export type { IStorageAdapter, IndexedDBAdapterOptions } from './storage'
 export {
   BaseStorageAdapter,
   MemoryStorageAdapter,
   LocalStorageAdapter,
   SessionStorageAdapter,
+  IndexedDBStorageAdapter,
+  createIndexedDBAdapter,
 } from './storage'
 
 // ============================================================
@@ -71,20 +90,32 @@ export {
 export {
   LoggerPlugin,
   createLoggerPlugin,
+  PerformancePlugin,
+  createPerformancePlugin,
 } from './plugins'
-export type { LoggerPluginOptions, LogLevel } from './plugins'
+export type {
+  LoggerPluginOptions,
+  LogLevel,
+  PerformancePluginOptions,
+  PerformanceMetric,
+  PerformanceStats,
+  OperationStats,
+} from './plugins'
 
 // ============================================================
 // 工具函数
 // ============================================================
 export {
+  // 哈希工具
   hashString,
   generateCacheKey,
   parseCacheKey,
   generateId,
+  // 定时器工具
   TimerManager,
   delay,
   measureTime,
+  // 验证工具
   validateKey,
   validateValue,
   validateTTL,
@@ -92,6 +123,24 @@ export {
   isExpired,
   isStorageAvailable,
   isIndexedDBAvailable,
+  // 内存工具
+  estimateMemoryUsage,
+  estimateCacheItemSize,
+  formatBytes,
+  MemoryTracker,
+  // 防抖节流
+  debounce,
+  throttle,
+  createKeyedDebounce,
+  createKeyedThrottle,
+} from './utils'
+
+export type {
+  MemoryTrackerSummary,
+  DebouncedFunction,
+  ThrottledFunction,
+  DebounceOptions,
+  ThrottleOptions,
 } from './utils'
 
 // ============================================================

@@ -9,7 +9,9 @@ import { ERROR_MESSAGES } from '../constants'
 /**
  * JSON 序列化器实现
  */
-export class JSONSerializer implements Serializer {
+export class JSONSerializer implements Serializer<unknown> {
+  readonly name = 'json'
+
   /**
    * 序列化值为 JSON 字符串
    * @param value - 要序列化的值
@@ -43,7 +45,7 @@ export class JSONSerializer implements Serializer {
  * 创建 JSON 序列化器实例
  * @returns JSON 序列化器
  */
-export function createJSONSerializer(): Serializer {
+export function createJSONSerializer(): Serializer<unknown> {
   return new JSONSerializer()
 }
 

@@ -5,6 +5,9 @@
 
 import type { CacheItem, Serializer } from '../types'
 
+// 内部使用的序列化器类型别名
+type AnySerializer = Serializer<unknown>
+
 /**
  * 存储适配器接口
  */
@@ -51,9 +54,9 @@ export interface IStorageAdapter {
  * 存储适配器基类
  */
 export abstract class BaseStorageAdapter implements IStorageAdapter {
-  protected serializer: Serializer
+  protected serializer: AnySerializer
 
-  constructor(serializer: Serializer) {
+  constructor(serializer: AnySerializer) {
     this.serializer = serializer
   }
 

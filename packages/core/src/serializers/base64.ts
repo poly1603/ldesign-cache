@@ -10,7 +10,9 @@ import { ERROR_MESSAGES } from '../constants'
  * Base64 序列化器实现
  * 先 JSON 序列化，再 Base64 编码
  */
-export class Base64Serializer implements Serializer {
+export class Base64Serializer implements Serializer<unknown> {
+  readonly name = 'base64'
+
   /**
    * 序列化值为 Base64 字符串
    * @param value - 要序列化的值
@@ -61,7 +63,7 @@ export class Base64Serializer implements Serializer {
  * 创建 Base64 序列化器实例
  * @returns Base64 序列化器
  */
-export function createBase64Serializer(): Serializer {
+export function createBase64Serializer(): Serializer<unknown> {
   return new Base64Serializer()
 }
 

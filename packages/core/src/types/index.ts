@@ -12,5 +12,5 @@ export * from './strategy'
 // 导出事件相关类型
 export * from './event'
 
-// 导出统计相关类型
-export * from './stats'
+// 导出统计相关类型（排除已在 cache.ts 中定义的 CacheStats）
+export type { PerformanceMetrics } from './stats'

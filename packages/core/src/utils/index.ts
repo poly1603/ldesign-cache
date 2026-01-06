@@ -6,4 +6,6 @@
 export * from './hash'
 export * from './timer'
 export * from './validator'
+export * from './memory'
+export * from './debounce'
 

@@ -13,7 +13,7 @@ import { isStorageAvailable } from '../utils'
 export class LocalStorageAdapter extends BaseStorageAdapter {
   private prefix: string
 
-  constructor(serializer: Serializer, prefix = 'ldesign-cache:') {
+  constructor(serializer: Serializer<unknown>, prefix = 'ldesign-cache:') {
     super(serializer)
     this.prefix = prefix
   }
@@ -28,7 +28,7 @@ export class LocalStorageAdapter extends BaseStorageAdapter {
       if (!data) {
         return null
       }
-      return this.serializer.deserialize<CacheItem<T>>(data)
+      return this.serializer.deserialize(data) as CacheItem<T>
     }
     catch {
       return null
@@ -42,7 +42,9 @@ export class LocalStorageAdapter extends BaseStorageAdapter {
 
     try {
       const data = this.serializer.serialize(item)
-      localStorage.setItem(this.prefix + key, data)
+      if (typeof data === 'string') {
+        localStorage.setItem(this.prefix + key, data)
+      }
     }
     catch {
       // 忽略错误

@@ -304,6 +304,8 @@ export class CacheManager<T = any> {
       succeeded,
       failed,
       results: new Map(),
+      duration: 0,
+      get allSucceeded() { return failed.length === 0 },
     }
   }
 
@@ -339,6 +341,8 @@ export class CacheManager<T = any> {
       succeeded,
       failed,
       results,
+      duration: 0,
+      get allSucceeded() { return failed.length === 0 },
     }
   }
 
