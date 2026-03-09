@@ -1,0 +1,23 @@
+﻿{
+  "name": "@ldesign/cache-playground",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ldesign/cache-core": "workspace:*",
+    "@ldesign/cache-vue": "workspace:*",
+    "@ldesign/engine-vue3": "workspace:*",
+    "lucide-vue-next": "^0.454.0",
+    "vue": "^3.5.18"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.3",
+    "typescript": "^5.7.3",
+    "vite": "^5.0.12"
+  }
+}

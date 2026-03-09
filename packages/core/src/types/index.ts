@@ -1,16 +1,8 @@
-/**
- * 缓存管理库核心类型定义
- * @module @ldesign/cache/core/types
+﻿/**
+ * Public type entry.
  */
 
-// 导出缓存相关类型
 export * from './cache'
-
-// 导出策略相关类型
 export * from './strategy'
-
-// 导出事件相关类型
 export * from './event'
-
-// 导出统计相关类型（排除已在 cache.ts 中定义的 CacheStats）
 export type { PerformanceMetrics } from './stats'

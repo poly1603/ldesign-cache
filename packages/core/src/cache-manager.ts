@@ -1,85 +1,97 @@
-/**
- * 缓存管理器 - 统一的缓存管理接口
- * 
- * 整合所有缓存策略，提供统一的 API
- * 
- * @module @ldesign/cache/core/cache-manager
+﻿/**
+ * Cache manager with strategy abstraction, plugin lifecycle, metadata index,
+ * invalidation and query enhancements.
  */
 
-import type { BatchOptions, BatchResult, CacheEvent, CacheEventListener, CacheItem, CacheOptions, CacheStats, ICacheStrategy } from './types'
-import { CacheEventType, CacheStrategy } from './types'
-import { LRUCache } from './strategies/lru'
-import { LFUCache } from './strategies/lfu'
+import type {
+  BatchOptions,
+  BatchResult,
+  CacheError,
+  CacheEvent,
+  CacheEventListener,
+  CacheItem,
+  CacheOptions,
+  CachePlugin,
+  CachePluginContext,
+  CacheStats,
+  EvictionReason,
+  ICacheStrategy,
+  InvalidatePredicate,
+  SetOptions,
+  StorageType,
+} from './types'
+import { CacheErrorCode, CacheEventType, CacheStrategy } from './types'
 import { FIFOCache } from './strategies/fifo'
+import { LFUCache } from './strategies/lfu'
+import { LRUCache } from './strategies/lru'
 import { TTLCache } from './strategies/ttl'
+import { CacheQueryClient } from './query/client'
 
-/**
- * 缓存管理器类
- * 
- * 特点：
- * - 支持多种缓存策略（LRU、LFU、FIFO、TTL）
- * - 统一的 API 接口
- * - 事件监听机制
- * - 缓存统计功能
- * - 批量操作支持
- * - 持久化支持（可选）
- * 
- * @template T - 缓存值类型
- * 
- * @example
- * ```typescript
- * // 创建 LRU 缓存
- * const cache = new CacheManager<string>({
- *   strategy: CacheStrategy.LRU,
- *   maxSize: 100,
- *   defaultTTL: 5000,
- *   enableStats: true
- * })
- * 
- * // 设置缓存
- * cache.set('key1', 'value1')
- * 
- * // 获取缓存
- * const value = cache.get('key1')
- * 
- * // 监听事件
- * cache.on('evict', (event) => {
- *   console.log('缓存项被淘汰:', event.key)
- * })
- * 
- * // 获取统计信息
- * const stats = cache.getStats()
- * console.log('命中率:', stats.hitRate)
- * ```
- */
+interface InternalOptions<T> {
+  strategy: CacheStrategy
+  maxSize: number
+  defaultTTL?: number
+  enableStats: boolean
+  enablePersistence: boolean
+  storageType: StorageType
+  storagePrefix: string
+  cleanupInterval: number
+  namespace?: string
+  plugins: CachePlugin<T>[]
+  onEvict?: (key: string, value: T, reason: EvictionReason) => void
+  onExpire?: (key: string, value: T) => void
+  onError?: (error: CacheError) => void
+}
+
+interface EntryMetadata {
+  tags: string[]
+  namespace?: string
+  priority?: number
+  ttl?: number
+  expiresAt?: number
+}
+
+interface PersistedCacheEntry<T> {
+  value: T
+  ttl?: number
+  expiresAt?: number
+  tags?: string[]
+  namespace?: string
+  priority?: number
+}
+
 export class CacheManager<T = any> {
+  readonly query: CacheQueryClient
+
   private strategy: ICacheStrategy<T>
-  private options: Required<CacheOptions>
+  private options: InternalOptions<T>
   private listeners: Map<CacheEventType, Set<CacheEventListener<T>>>
   private stats: CacheStats
   private cleanupTimer?: ReturnType<typeof setInterval>
 
-  constructor(options: CacheOptions = {}) {
-    // 合并默认选项
+  private metadata = new Map<string, EntryMetadata>()
+  private tagIndex = new Map<string, Set<string>>()
+  private namespaceIndex = new Map<string, Set<string>>()
+
+  constructor(options: CacheOptions<T> = {}) {
     this.options = {
-      strategy: CacheStrategy.LRU,
-      maxSize: 100,
-      defaultTTL: undefined,
-      enableStats: true,
-      enablePersistence: false,
-      storageType: 'localStorage',
-      storagePrefix: 'cache:',
-      cleanupInterval: 60 * 1000, // 1 分钟
-      ...options,
-    } as Required<CacheOptions>
+      strategy: options.strategy ?? CacheStrategy.LRU,
+      maxSize: options.maxSize ?? 100,
+      defaultTTL: options.defaultTTL,
+      enableStats: options.enableStats ?? true,
+      enablePersistence: options.enablePersistence ?? false,
+      storageType: options.storageType ?? 'localStorage',
+      storagePrefix: options.storagePrefix ?? 'cache:',
+      cleanupInterval: options.cleanupInterval ?? 60_000,
+      namespace: options.namespace,
+      plugins: [...(options.plugins ?? [])],
+      onEvict: options.onEvict,
+      onExpire: options.onExpire,
+      onError: options.onError,
+    }
 
-    // 初始化策略
     this.strategy = this.createStrategy(this.options.strategy)
-
-    // 初始化事件监听器
     this.listeners = new Map()
-
-    // 初始化统计信息
     this.stats = {
       size: 0,
       maxSize: this.options.maxSize,
@@ -90,179 +102,339 @@ export class CacheManager<T = any> {
       evictions: 0,
       expirations: 0,
       memoryUsage: 0,
+      lastUpdated: Date.now(),
     }
 
-    // 启动自动清理
+    this.query = new CacheQueryClient(this)
+
+    this.initPlugins()
+
     if (this.options.cleanupInterval > 0) {
       this.startAutoCleanup()
     }
 
-    // 从持久化存储加载
     if (this.options.enablePersistence) {
       this.loadFromStorage()
     }
   }
 
-  /**
-   * 获取缓存项
-   * @param key - 缓存键
-   * @returns 缓存值，不存在或已过期返回 undefined
-   */
   get(key: string): T | undefined {
-    const value = this.strategy.get(key)
+    this.assertKey(key)
 
-    // 更新统计
-    if (this.options.enableStats) {
-      this.stats.totalRequests++
-      if (value !== undefined) {
-        this.stats.hits++
-        this.emit(CacheEventType.HIT, { key, value })
+    this.ensureNotExpired(key)
+
+    let resolvedKey = key
+    for (const plugin of this.options.plugins) {
+      if (!plugin.beforeGet) {
+        continue
       }
-      else {
-        this.stats.misses++
-        this.emit(CacheEventType.MISS, { key })
+      try {
+        const maybeKey = plugin.beforeGet(resolvedKey)
+        if (typeof maybeKey === 'string' && maybeKey.length > 0) {
+          resolvedKey = maybeKey
+        }
       }
-      this.updateHitRate()
+      catch (error) {
+        this.handlePluginError(plugin, 'beforeGet', error, resolvedKey)
+      }
     }
 
-    this.emit(CacheEventType.GET, { key, value })
+    let value = this.strategy.get(resolvedKey)
+
+    // Guard against strategy-level expiration and remove stale metadata.
+    if (value === undefined && this.metadata.has(resolvedKey) && !this.strategy.has(resolvedKey)) {
+      this.handleExpiredWithoutValue(resolvedKey)
+    }
+
+    for (const plugin of this.options.plugins) {
+      if (!plugin.afterGet) {
+        continue
+      }
+      try {
+        const transformed = plugin.afterGet(resolvedKey, value)
+        if (transformed !== undefined || value === undefined) {
+          value = transformed as T | undefined
+        }
+      }
+      catch (error) {
+        this.handlePluginError(plugin, 'afterGet', error, resolvedKey)
+      }
+    }
+
+    if (this.options.enableStats) {
+      this.stats.totalRequests += 1
+      if (value !== undefined) {
+        this.stats.hits += 1
+        this.emit(CacheEventType.HIT, { key: resolvedKey, value })
+      }
+      else {
+        this.stats.misses += 1
+        this.emit(CacheEventType.MISS, { key: resolvedKey })
+      }
+      this.updateHitRate()
+      this.stats.lastUpdated = Date.now()
+    }
+
+    this.emit(CacheEventType.GET, {
+      key: resolvedKey,
+      value,
+      metadata: {
+        fromCache: value !== undefined,
+      },
+    })
 
     return value
   }
 
-  /**
-   * 设置缓存项
-   * @param key - 缓存键
-   * @param value - 缓存值
-   * @param ttl - 过期时间（毫秒），覆盖默认 TTL
-   */
-  set(key: string, value: T, ttl?: number): void {
-    // 记录设置前的大小，用于检测是否发生淘汰
-    const sizeBefore = this.strategy.size
-    const wasAtCapacity = sizeBefore >= this.options.maxSize
+  set(key: string, value: T, ttl?: number): void
+  set(key: string, value: T, options?: SetOptions): void
+  set(key: string, value: T, ttlOrOptions?: number | SetOptions): void {
+    this.assertKey(key)
 
-    this.strategy.set(key, value, ttl)
-
-    // 如果之前已满且没有增加大小，说明发生了淘汰
-    if (wasAtCapacity && this.strategy.size <= sizeBefore) {
-      if (this.options.enableStats) {
-        this.stats.evictions++
-      }
-      // 无法获取具体淘汰的项，只发送通知
-      this.emit(CacheEventType.EVICT, { key: '', value: undefined as unknown as T })
+    let setInput = {
+      key,
+      value,
+      options: this.resolveSetOptions(ttlOrOptions),
     }
 
-    // 更新统计
+    for (const plugin of this.options.plugins) {
+      if (!plugin.beforeSet) {
+        continue
+      }
+      try {
+        const transformed = plugin.beforeSet(setInput.key, setInput.value, setInput.options)
+        if (transformed) {
+          setInput = {
+            key: transformed.key,
+            value: transformed.value,
+            options: this.resolveSetOptions(transformed.options),
+          }
+        }
+      }
+      catch (error) {
+        this.handlePluginError(plugin, 'beforeSet', error, setInput.key)
+      }
+    }
+
+    const { ttl: resolvedTTL } = setInput.options
+    this.assertTTL(resolvedTTL)
+
+    const evicted = (this.strategy as any).set(setInput.key, setInput.value, resolvedTTL) as CacheItem<T> | undefined
+
+    this.setMetadata(setInput.key, setInput.options)
+
+    if (evicted) {
+      this.handleEviction(evicted)
+    }
+
     if (this.options.enableStats) {
       this.stats.size = this.strategy.size
       this.updateMemoryUsage()
+      this.stats.lastUpdated = Date.now()
     }
 
-    this.emit(CacheEventType.SET, { key, value })
+    this.emit(CacheEventType.SET, {
+      key: setInput.key,
+      value: setInput.value,
+      metadata: {
+        ttl: setInput.options.ttl,
+        tags: setInput.options.tags,
+        namespace: setInput.options.namespace,
+        priority: setInput.options.priority,
+      },
+    })
 
-    // 持久化
     if (this.options.enablePersistence) {
-      this.saveToStorage(key, value)
+      this.saveToStorage(setInput.key)
+    }
+
+    for (const plugin of this.options.plugins) {
+      if (!plugin.afterSet) {
+        continue
+      }
+      try {
+        plugin.afterSet(setInput.key, setInput.value, setInput.options)
+      }
+      catch (error) {
+        this.handlePluginError(plugin, 'afterSet', error, setInput.key)
+      }
     }
   }
 
-  /**
-   * 删除缓存项
-   * @param key - 缓存键
-   * @returns 是否删除成功
-   */
   delete(key: string): boolean {
-    const success = this.strategy.delete(key)
+    this.assertKey(key)
 
-    if (success) {
-      // 更新统计
-      if (this.options.enableStats) {
-        this.stats.size = this.strategy.size
-        this.updateMemoryUsage()
+    let resolvedKey = key
+    for (const plugin of this.options.plugins) {
+      if (!plugin.beforeDelete) {
+        continue
       }
+      try {
+        const maybeKey = plugin.beforeDelete(resolvedKey)
+        if (typeof maybeKey === 'string' && maybeKey.length > 0) {
+          resolvedKey = maybeKey
+        }
+      }
+      catch (error) {
+        this.handlePluginError(plugin, 'beforeDelete', error, resolvedKey)
+      }
+    }
 
-      this.emit(CacheEventType.DELETE, { key })
+    const success = this.deleteInternal(resolvedKey, 'manual', true)
 
-      // 从持久化存储删除
-      if (this.options.enablePersistence) {
-        this.removeFromStorage(key)
+    for (const plugin of this.options.plugins) {
+      if (!plugin.afterDelete) {
+        continue
+      }
+      try {
+        plugin.afterDelete(resolvedKey, success, 'manual')
+      }
+      catch (error) {
+        this.handlePluginError(plugin, 'afterDelete', error, resolvedKey)
       }
     }
 
     return success
   }
 
-  /**
-   * 检查缓存项是否存在
-   * @param key - 缓存键
-   * @returns 是否存在且未过期
-   */
   has(key: string): boolean {
+    this.assertKey(key)
+    if (this.ensureNotExpired(key)) {
+      return false
+    }
     return this.strategy.has(key)
   }
 
-  /**
-   * 清空所有缓存
-   */
   clear(): void {
-    this.strategy.clear()
+    for (const plugin of this.options.plugins) {
+      if (!plugin.beforeClear) {
+        continue
+      }
+      try {
+        plugin.beforeClear()
+      }
+      catch (error) {
+        this.handlePluginError(plugin, 'beforeClear', error)
+      }
+    }
 
-    // 重置统计
+    this.strategy.clear()
+    this.metadata.clear()
+    this.tagIndex.clear()
+    this.namespaceIndex.clear()
+
     if (this.options.enableStats) {
       this.stats.size = 0
       this.stats.memoryUsage = 0
+      this.stats.lastUpdated = Date.now()
     }
 
     this.emit(CacheEventType.CLEAR, {})
 
-    // 清空持久化存储
     if (this.options.enablePersistence) {
       this.clearStorage()
     }
+
+    for (const plugin of this.options.plugins) {
+      if (!plugin.afterClear) {
+        continue
+      }
+      try {
+        plugin.afterClear()
+      }
+      catch (error) {
+        this.handlePluginError(plugin, 'afterClear', error)
+      }
+    }
   }
 
-  /**
-   * 获取缓存大小
-   */
+  invalidateByTag(tag: string): number {
+    const keys = Array.from(this.tagIndex.get(tag) ?? [])
+    let removed = 0
+
+    for (const key of keys) {
+      if (this.delete(key)) {
+        removed += 1
+      }
+    }
+
+    return removed
+  }
+
+  invalidateByNamespace(namespace: string): number {
+    const keys = Array.from(this.namespaceIndex.get(namespace) ?? [])
+    let removed = 0
+
+    for (const key of keys) {
+      if (this.delete(key)) {
+        removed += 1
+      }
+    }
+
+    return removed
+  }
+
+  invalidateWhere(predicate: InvalidatePredicate<T>): number {
+    const keys = this.keys()
+    let removed = 0
+
+    for (const key of keys) {
+      const item = this.getItem(key)
+      if (item && predicate(item)) {
+        if (this.delete(key)) {
+          removed += 1
+        }
+      }
+    }
+
+    return removed
+  }
+
   get size(): number {
+    this.cleanupExpiredKeys()
     return this.strategy.size
   }
 
-  /**
-   * 获取所有键
-   */
   keys(): string[] {
+    this.cleanupExpiredKeys()
     return this.strategy.keys()
   }
 
-  /**
-   * 获取所有值
-   */
   values(): T[] {
+    this.cleanupExpiredKeys()
     return this.strategy.values()
   }
 
-  /**
-   * 获取所有缓存项
-   */
   entries(): Array<[string, T]> {
+    this.cleanupExpiredKeys()
     return this.strategy.entries()
   }
 
-  /**
-   * 获取缓存项详情
-   * @param key - 缓存键
-   * @returns 缓存项详情，不存在返回 undefined
-   */
   getItem(key: string): CacheItem<T> | undefined {
-    return this.strategy.getItem(key)
+    this.assertKey(key)
+
+    if (this.ensureNotExpired(key)) {
+      return undefined
+    }
+
+    const item = this.strategy.getItem(key)
+    if (!item) {
+      this.removeMetadata(key)
+      return undefined
+    }
+
+    const metadata = this.metadata.get(key)
+
+    return {
+      ...item,
+      tags: metadata?.tags,
+      namespace: metadata?.namespace,
+      priority: metadata?.priority,
+      ttl: item.ttl ?? metadata?.ttl,
+      expiresAt: item.expiresAt ?? metadata?.expiresAt,
+    }
   }
 
-  /**
-   * 批量获取缓存项
-   * @param keys - 缓存键数组
-   * @returns 键值对 Map
-   */
   mget(keys: string[]): Map<string, T> {
     const result = new Map<string, T>()
 
@@ -276,20 +448,30 @@ export class CacheManager<T = any> {
     return result
   }
 
-  /**
-   * 批量设置缓存项
-   * @param entries - 键值对数组
-   * @param options - 批量操作选项
-   * @returns 批量操作结果
-   */
   mset(entries: Array<[string, T]>, options: BatchOptions = {}): BatchResult<void> {
-    const { continueOnError = true, ttl } = options
+    const startedAt = Date.now()
     const succeeded: string[] = []
     const failed: Array<{ key: string, error: Error }> = []
 
-    for (const [key, value] of entries) {
+    const {
+      continueOnError = true,
+      ttl,
+      tags,
+      namespace,
+      priority,
+      onProgress,
+    } = options
+
+    for (let i = 0; i < entries.length; i += 1) {
+      const [key, value] = entries[i]
+
       try {
-        this.set(key, value, ttl)
+        this.set(key, value, {
+          ttl,
+          tags,
+          namespace,
+          priority,
+        })
         succeeded.push(key)
       }
       catch (error) {
@@ -298,30 +480,34 @@ export class CacheManager<T = any> {
           break
         }
       }
+      finally {
+        onProgress?.(i + 1, entries.length, key)
+      }
     }
 
     return {
       succeeded,
       failed,
       results: new Map(),
-      duration: 0,
+      duration: Date.now() - startedAt,
       get allSucceeded() { return failed.length === 0 },
     }
   }
 
-  /**
-   * 批量删除缓存项
-   * @param keys - 缓存键数组
-   * @param options - 批量操作选项
-   * @returns 批量操作结果
-   */
   mdel(keys: string[], options: BatchOptions = {}): BatchResult<boolean> {
-    const { continueOnError = true } = options
+    const startedAt = Date.now()
     const succeeded: string[] = []
     const failed: Array<{ key: string, error: Error }> = []
     const results = new Map<string, boolean>()
 
-    for (const key of keys) {
+    const {
+      continueOnError = true,
+      onProgress,
+    } = options
+
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i]
+
       try {
         const success = this.delete(key)
         results.set(key, success)
@@ -335,28 +521,31 @@ export class CacheManager<T = any> {
           break
         }
       }
+      finally {
+        onProgress?.(i + 1, keys.length, key)
+      }
     }
 
     return {
       succeeded,
       failed,
       results,
-      duration: 0,
+      duration: Date.now() - startedAt,
       get allSucceeded() { return failed.length === 0 },
     }
   }
 
-  /**
-   * 获取统计信息
-   * @returns 缓存统计信息
-   */
   getStats(): CacheStats {
-    return { ...this.stats }
+    this.cleanupExpiredKeys()
+
+    return {
+      ...this.stats,
+      size: this.strategy.size,
+      maxSize: this.options.maxSize,
+      lastUpdated: Date.now(),
+    }
   }
 
-  /**
-   * 重置统计信息
-   */
   resetStats(): void {
     this.stats = {
       size: this.strategy.size,
@@ -368,30 +557,14 @@ export class CacheManager<T = any> {
       evictions: 0,
       expirations: 0,
       memoryUsage: this.stats.memoryUsage,
+      lastUpdated: Date.now(),
     }
   }
 
-  /**
-   * 清理过期项
-   * @returns 清理的项数
-   */
   cleanup(): number {
-    const count = this.strategy.cleanup()
-
-    if (count > 0 && this.options.enableStats) {
-      this.stats.expirations += count
-      this.stats.size = this.strategy.size
-      this.updateMemoryUsage()
-    }
-
-    return count
+    return this.cleanupExpiredKeys()
   }
 
-  /**
-   * 监听缓存事件
-   * @param type - 事件类型
-   * @param listener - 事件监听器
-   */
   on(type: CacheEventType, listener: CacheEventListener<T>): void {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, new Set())
@@ -399,23 +572,302 @@ export class CacheManager<T = any> {
     this.listeners.get(type)!.add(listener)
   }
 
-  /**
-   * 移除事件监听器
-   * @param type - 事件类型
-   * @param listener - 事件监听器
-   */
   off(type: CacheEventType, listener: CacheEventListener<T>): void {
-    const listeners = this.listeners.get(type)
-    if (listeners) {
-      listeners.delete(listener)
+    this.listeners.get(type)?.delete(listener)
+  }
+
+  stopAutoCleanup(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer)
+      this.cleanupTimer = undefined
     }
   }
 
-  /**
-   * 触发事件
-   * @param type - 事件类型
-   * @param data - 事件数据
-   */
+  destroy(): void {
+    this.stopAutoCleanup()
+    this.clear()
+    this.listeners.clear()
+    this.query.clearInflight()
+
+    for (const plugin of this.options.plugins) {
+      if (!plugin.destroy) {
+        continue
+      }
+      try {
+        const maybePromise = plugin.destroy()
+        if (maybePromise && typeof (maybePromise as Promise<void>).then === 'function') {
+          void (maybePromise as Promise<void>).catch(error => {
+            this.handlePluginError(plugin, 'destroy', error)
+          })
+        }
+      }
+      catch (error) {
+        this.handlePluginError(plugin, 'destroy', error)
+      }
+    }
+  }
+
+  private initPlugins(): void {
+    const manager = this
+    const context: CachePluginContext<T> = {
+      getStats: () => this.getStats(),
+      get size() {
+        return manager.size
+      },
+      keys: () => this.keys(),
+      has: (key: string) => this.has(key),
+      get: (key: string) => this.get(key),
+      delete: (key: string) => this.delete(key),
+    }
+
+    for (const plugin of this.options.plugins) {
+      if (!plugin.init) {
+        continue
+      }
+
+      try {
+        const maybePromise = plugin.init(context)
+        if (maybePromise && typeof (maybePromise as Promise<void>).then === 'function') {
+          void (maybePromise as Promise<void>).catch(error => {
+            this.handlePluginError(plugin, 'init', error)
+          })
+        }
+      }
+      catch (error) {
+        this.handlePluginError(plugin, 'init', error)
+      }
+    }
+  }
+
+  private resolveSetOptions(input?: number | SetOptions): SetOptions {
+    const base: SetOptions = typeof input === 'number' ? { ttl: input } : { ...(input ?? {}) }
+
+    if (base.ttl === undefined) {
+      base.ttl = this.options.defaultTTL
+    }
+
+    if (base.namespace === undefined) {
+      base.namespace = this.options.namespace
+    }
+
+    if (base.tags) {
+      base.tags = this.normalizeTags(base.tags)
+    }
+
+    return base
+  }
+
+  private normalizeTags(tags: string[]): string[] {
+    const normalized = tags
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0)
+
+    return Array.from(new Set(normalized))
+  }
+
+  private setMetadata(key: string, options: SetOptions): void {
+    this.removeMetadata(key)
+
+    const ttl = options.ttl
+    const expiresAt = ttl !== undefined ? Date.now() + ttl : undefined
+
+    const metadata: EntryMetadata = {
+      tags: this.normalizeTags(options.tags ?? []),
+      namespace: options.namespace,
+      priority: options.priority,
+      ttl,
+      expiresAt,
+    }
+
+    this.metadata.set(key, metadata)
+
+    for (const tag of metadata.tags) {
+      if (!this.tagIndex.has(tag)) {
+        this.tagIndex.set(tag, new Set())
+      }
+      this.tagIndex.get(tag)!.add(key)
+    }
+
+    if (metadata.namespace) {
+      if (!this.namespaceIndex.has(metadata.namespace)) {
+        this.namespaceIndex.set(metadata.namespace, new Set())
+      }
+      this.namespaceIndex.get(metadata.namespace)!.add(key)
+    }
+  }
+
+  private removeMetadata(key: string): void {
+    const metadata = this.metadata.get(key)
+    if (!metadata) {
+      return
+    }
+
+    for (const tag of metadata.tags) {
+      const keys = this.tagIndex.get(tag)
+      if (!keys) {
+        continue
+      }
+      keys.delete(key)
+      if (keys.size === 0) {
+        this.tagIndex.delete(tag)
+      }
+    }
+
+    if (metadata.namespace) {
+      const keys = this.namespaceIndex.get(metadata.namespace)
+      if (keys) {
+        keys.delete(key)
+        if (keys.size === 0) {
+          this.namespaceIndex.delete(metadata.namespace)
+        }
+      }
+    }
+
+    this.metadata.delete(key)
+  }
+
+  private ensureNotExpired(key: string): boolean {
+    const metadata = this.metadata.get(key)
+    if (!metadata?.expiresAt) {
+      return false
+    }
+
+    if (metadata.expiresAt > Date.now()) {
+      return false
+    }
+
+    this.deleteInternal(key, 'expired', false)
+    return true
+  }
+
+  private cleanupExpiredKeys(): number {
+    const now = Date.now()
+    let count = 0
+
+    for (const [key, metadata] of this.metadata.entries()) {
+      if (!metadata.expiresAt || metadata.expiresAt > now) {
+        continue
+      }
+
+      const deleted = this.deleteInternal(key, 'expired', false)
+      if (deleted) {
+        count += 1
+      }
+      else {
+        this.handleExpiredWithoutValue(key)
+        count += 1
+      }
+    }
+
+    if (count > 0 && this.options.enableStats) {
+      this.stats.size = this.strategy.size
+      this.updateMemoryUsage()
+      this.stats.lastUpdated = Date.now()
+    }
+
+    return count
+  }
+
+  private handleExpiredWithoutValue(key: string): void {
+    this.removeMetadata(key)
+    this.removeFromStorage(key)
+
+    if (this.options.enableStats) {
+      this.stats.expirations += 1
+      this.stats.size = this.strategy.size
+      this.stats.lastUpdated = Date.now()
+    }
+
+    this.emit(CacheEventType.EXPIRE, { key })
+  }
+
+  private deleteInternal(key: string, reason: EvictionReason, emitDeleteEvent: boolean): boolean {
+    const value = this.peekValue(key)
+    const success = this.strategy.delete(key)
+
+    if (!success) {
+      this.removeMetadata(key)
+      return false
+    }
+
+    this.removeMetadata(key)
+
+    if (this.options.enableStats) {
+      this.stats.size = this.strategy.size
+      if (reason === 'expired') {
+        this.stats.expirations += 1
+      }
+      this.updateMemoryUsage()
+      this.stats.lastUpdated = Date.now()
+    }
+
+    if (emitDeleteEvent) {
+      this.emit(CacheEventType.DELETE, {
+        key,
+        value,
+        metadata: { reason },
+      })
+    }
+
+    if (reason === 'expired') {
+      this.emit(CacheEventType.EXPIRE, { key, value })
+      if (value !== undefined) {
+        this.options.onExpire?.(key, value)
+      }
+    }
+
+    if (this.options.enablePersistence) {
+      this.removeFromStorage(key)
+    }
+
+    return true
+  }
+
+  private handleEviction(evicted: CacheItem<T>): void {
+    const reason = this.resolveEvictionReasonByStrategy()
+    this.removeMetadata(evicted.key)
+
+    if (this.options.enableStats) {
+      this.stats.evictions += 1
+      this.stats.size = this.strategy.size
+      this.stats.lastUpdated = Date.now()
+    }
+
+    this.emit(CacheEventType.EVICT, {
+      key: evicted.key,
+      value: evicted.value,
+      metadata: { reason },
+    })
+
+    this.options.onEvict?.(evicted.key, evicted.value, reason)
+
+    if (this.options.enablePersistence) {
+      this.removeFromStorage(evicted.key)
+    }
+  }
+
+  private resolveEvictionReasonByStrategy(): EvictionReason {
+    switch (this.options.strategy) {
+      case CacheStrategy.LFU:
+        return 'lfu'
+      case CacheStrategy.FIFO:
+        return 'fifo'
+      case CacheStrategy.LRU:
+        return 'lru'
+      default:
+        return 'strategy'
+    }
+  }
+
+  private peekValue(key: string): T | undefined {
+    for (const [entryKey, value] of this.strategy.entries()) {
+      if (entryKey === key) {
+        return value
+      }
+    }
+    return undefined
+  }
+
   private emit(type: CacheEventType, data: Partial<CacheEvent<T>>): void {
     const listeners = this.listeners.get(type)
     if (!listeners || listeners.size === 0) {
@@ -433,217 +885,254 @@ export class CacheManager<T = any> {
         listener(event)
       }
       catch (error) {
-        console.error('缓存事件监听器错误:', error)
+        this.handleError(error)
       }
     }
   }
 
-  /**
-   * 创建缓存策略实例
-   */
   private createStrategy(strategy: CacheStrategy): ICacheStrategy<T> {
     const { maxSize, defaultTTL, cleanupInterval } = this.options
 
     switch (strategy) {
-      case CacheStrategy.LRU:
-        return new LRUCache<T>(maxSize, defaultTTL)
       case CacheStrategy.LFU:
         return new LFUCache<T>(maxSize, defaultTTL)
       case CacheStrategy.FIFO:
         return new FIFOCache<T>(maxSize, defaultTTL)
       case CacheStrategy.TTL:
         return new TTLCache<T>(defaultTTL ?? 5 * 60 * 1000, cleanupInterval)
+      case CacheStrategy.LRU:
       default:
         return new LRUCache<T>(maxSize, defaultTTL)
     }
   }
 
-  /**
-   * 更新命中率
-   */
   private updateHitRate(): void {
-    if (this.stats.totalRequests > 0) {
-      this.stats.hitRate = this.stats.hits / this.stats.totalRequests
+    this.stats.hitRate = this.stats.totalRequests === 0
+      ? 0
+      : this.stats.hits / this.stats.totalRequests
+  }
+
+  private updateMemoryUsage(): void {
+    let total = 0
+
+    for (const [key, value] of this.strategy.entries()) {
+      total += this.estimateSize(key)
+      total += this.estimateSize(value)
+    }
+
+    this.stats.memoryUsage = total
+  }
+
+  private estimateSize(value: unknown): number {
+    try {
+      return JSON.stringify(value).length * 2
+    }
+    catch {
+      return 0
     }
   }
 
-  /**
-   * 更新内存占用估算
-   */
-  private updateMemoryUsage(): void {
-    // 简单估算：每个缓存项约 100 字节
-    this.stats.memoryUsage = this.strategy.size * 100
-  }
-
-  /**
-   * 启动自动清理定时器
-   */
   private startAutoCleanup(): void {
     this.cleanupTimer = setInterval(() => {
       this.cleanup()
     }, this.options.cleanupInterval)
 
-    // 在 Node.js 环境中，允许进程退出
     if (typeof this.cleanupTimer.unref === 'function') {
       this.cleanupTimer.unref()
     }
   }
 
-  /**
-   * 停止自动清理定时器
-   */
-  stopAutoCleanup(): void {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer)
-      this.cleanupTimer = undefined
-    }
-  }
-
-  /**
-   * 从持久化存储加载
-   */
   private loadFromStorage(): void {
-    if (typeof window === 'undefined') {
+    const storage = this.getStorage()
+    if (!storage) {
       return
     }
 
-    try {
-      const storage = this.getStorage()
-      if (!storage) {
-        return
-      }
+    const prefix = this.options.storagePrefix
+    const storageKeys: string[] = []
 
-      const prefix = this.options.storagePrefix
-      for (let i = 0; i < storage.length; i++) {
-        const key = storage.key(i)
-        if (key && key.startsWith(prefix)) {
-          const cacheKey = key.slice(prefix.length)
-          const data = storage.getItem(key)
-          if (data) {
-            const item = JSON.parse(data) as CacheItem<T>
-            // 检查是否过期
-            if (!item.expiresAt || Date.now() < item.expiresAt) {
-              this.strategy.set(cacheKey, item.value, item.ttl)
-            }
-          }
+    for (let i = 0; i < storage.length; i += 1) {
+      const storageKey = storage.key(i)
+      if (storageKey && storageKey.startsWith(prefix)) {
+        storageKeys.push(storageKey)
+      }
+    }
+
+    for (const storageKey of storageKeys) {
+      try {
+        const raw = storage.getItem(storageKey)
+        if (!raw) {
+          continue
         }
+
+        const parsed = JSON.parse(raw) as PersistedCacheEntry<T>
+        const key = storageKey.slice(prefix.length)
+
+        if (parsed.expiresAt && parsed.expiresAt <= Date.now()) {
+          storage.removeItem(storageKey)
+          continue
+        }
+
+        const ttl = parsed.expiresAt
+          ? Math.max(1, parsed.expiresAt - Date.now())
+          : parsed.ttl
+
+        this.set(key, parsed.value, {
+          ttl,
+          tags: parsed.tags,
+          namespace: parsed.namespace,
+          priority: parsed.priority,
+        })
       }
-    }
-    catch (error) {
-      console.error('从存储加载缓存失败:', error)
+      catch (error) {
+        this.handleError(error)
+        storage.removeItem(storageKey)
+      }
     }
   }
 
-  /**
-   * 保存到持久化存储
-   */
-  private saveToStorage(key: string, value: T): void {
-    if (typeof window === 'undefined') {
+  private saveToStorage(key: string): void {
+    const storage = this.getStorage()
+    if (!storage) {
       return
     }
 
-    try {
-      const storage = this.getStorage()
-      if (!storage) {
-        return
-      }
+    const item = this.getItem(key)
+    const storageKey = this.options.storagePrefix + key
 
-      const item = this.strategy.getItem(key)
-      if (item) {
-        const storageKey = this.options.storagePrefix + key
-        storage.setItem(storageKey, JSON.stringify(item))
-      }
-    }
-    catch (error) {
-      console.error('保存缓存到存储失败:', error)
-    }
-  }
-
-  /**
-   * 从持久化存储删除
-   */
-  private removeFromStorage(key: string): void {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    try {
-      const storage = this.getStorage()
-      if (!storage) {
-        return
-      }
-
-      const storageKey = this.options.storagePrefix + key
+    if (!item) {
       storage.removeItem(storageKey)
+      return
+    }
+
+    const payload: PersistedCacheEntry<T> = {
+      value: item.value,
+      ttl: item.ttl,
+      expiresAt: item.expiresAt,
+      tags: item.tags,
+      namespace: item.namespace,
+      priority: item.priority,
+    }
+
+    try {
+      storage.setItem(storageKey, JSON.stringify(payload))
     }
     catch (error) {
-      console.error('从存储删除缓存失败:', error)
+      this.handleError(error, key)
     }
   }
 
-  /**
-   * 清空持久化存储
-   */
-  private clearStorage(): void {
-    if (typeof window === 'undefined') {
+  private removeFromStorage(key: string): void {
+    const storage = this.getStorage()
+    if (!storage) {
       return
     }
 
     try {
-      const storage = this.getStorage()
-      if (!storage) {
-        return
+      storage.removeItem(this.options.storagePrefix + key)
+    }
+    catch (error) {
+      this.handleError(error, key)
+    }
+  }
+
+  private clearStorage(): void {
+    const storage = this.getStorage()
+    if (!storage) {
+      return
+    }
+
+    const prefix = this.options.storagePrefix
+    const keysToRemove: string[] = []
+
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i)
+      if (key && key.startsWith(prefix)) {
+        keysToRemove.push(key)
       }
+    }
 
-      const prefix = this.options.storagePrefix
-      const keysToRemove: string[] = []
-
-      for (let i = 0; i < storage.length; i++) {
-        const key = storage.key(i)
-        if (key && key.startsWith(prefix)) {
-          keysToRemove.push(key)
-        }
-      }
-
-      for (const key of keysToRemove) {
+    for (const key of keysToRemove) {
+      try {
         storage.removeItem(key)
       }
-    }
-    catch (error) {
-      console.error('清空存储缓存失败:', error)
+      catch (error) {
+        this.handleError(error)
+      }
     }
   }
 
-  /**
-   * 获取存储对象
-   */
   private getStorage(): Storage | null {
     if (typeof window === 'undefined') {
       return null
     }
 
-    return this.options.storageType === 'localStorage'
-      ? window.localStorage
-      : window.sessionStorage
+    try {
+      return this.options.storageType === 'sessionStorage'
+        ? window.sessionStorage
+        : window.localStorage
+    }
+    catch (error) {
+      this.handleError(error)
+      return null
+    }
   }
 
-  /**
-   * 销毁缓存实例
-   */
-  destroy(): void {
-    this.stopAutoCleanup()
-    this.clear()
-    this.listeners.clear()
+  private assertKey(key: string): void {
+    if (typeof key !== 'string' || key.trim().length === 0) {
+      const error = this.createCacheError('Invalid cache key.', CacheErrorCode.INVALID_KEY, key)
+      this.handleError(error, key)
+      throw error
+    }
+  }
+
+  private assertTTL(ttl?: number): void {
+    if (ttl !== undefined && (typeof ttl !== 'number' || Number.isNaN(ttl) || ttl < 0)) {
+      const error = this.createCacheError('Invalid ttl value.', CacheErrorCode.INVALID_TTL)
+      this.handleError(error)
+      throw error
+    }
+  }
+
+  private createCacheError(message: string, code: CacheErrorCode, key?: string, cause?: Error): CacheError {
+    const error = new Error(message) as CacheError
+    error.name = 'CacheError'
+    error.code = code
+    error.key = key
+    error.cause = cause
+    return error
+  }
+
+  private handlePluginError(plugin: CachePlugin<T>, hook: string, error: unknown, key?: string): void {
+    this.handleError(
+      this.createCacheError(
+        `Plugin "${plugin.name}" failed in hook "${hook}".`,
+        CacheErrorCode.UNKNOWN_ERROR,
+        key,
+        error as Error,
+      ),
+      key,
+    )
+  }
+
+  private handleError(error: unknown, key?: string): void {
+    const cacheError = error instanceof Error
+      ? (error as CacheError)
+      : this.createCacheError('Unknown cache error.', CacheErrorCode.UNKNOWN_ERROR, key)
+
+    if (!cacheError.code) {
+      cacheError.code = CacheErrorCode.UNKNOWN_ERROR
+    }
+
+    this.options.onError?.(cacheError)
+
+    if (!this.options.onError) {
+      // Keep a visible fallback if the consumer does not handle errors.
+      console.error(cacheError)
+    }
   }
 }
 
-/**
- * 创建缓存管理器实例
- * @param options - 缓存配置选项
- * @returns 缓存管理器实例
- */
-export function createCacheManager<T = any>(options?: CacheOptions): CacheManager<T> {
+export function createCacheManager<T = any>(options?: CacheOptions<T>): CacheManager<T> {
   return new CacheManager<T>(options)
 }
-
-

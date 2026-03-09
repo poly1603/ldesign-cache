@@ -1,33 +1,26 @@
-/**
- * 日志插件
- * @module @ldesign/cache/core/plugins/logger
+﻿/**
+ * Logger plugin.
  */
 
 import type { CachePlugin } from '../types'
 
-/**
- * 日志级别
- */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
-/**
- * 日志插件选项
- */
 export interface LoggerPluginOptions {
-  /** 日志级别 */
   level?: LogLevel
-  /** 是否启用 */
   enabled?: boolean
-  /** 自定义日志函数 */
   logger?: (level: LogLevel, message: string, data?: any) => void
 }
 
-/**
- * 日志插件
- * 记录缓存操作日志
- */
+const LEVEL_WEIGHT: Record<LogLevel, number> = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+}
+
 export class LoggerPlugin implements CachePlugin {
-  name = 'logger'
+  readonly name = 'logger'
   private options: Required<LoggerPluginOptions>
 
   constructor(options: LoggerPluginOptions = {}) {
@@ -38,63 +31,55 @@ export class LoggerPlugin implements CachePlugin {
     }
   }
 
-  /**
-   * 默认日志函数
-   */
-  private defaultLogger(level: LogLevel, message: string, data?: any): void {
+  private shouldLog(level: LogLevel): boolean {
     if (!this.options.enabled) {
+      return false
+    }
+    return LEVEL_WEIGHT[level] >= LEVEL_WEIGHT[this.options.level]
+  }
+
+  private defaultLogger(level: LogLevel, message: string, data?: any): void {
+    if (!this.shouldLog(level)) {
       return
     }
 
-    const timestamp = new Date().toISOString()
-    const logMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`
+    const prefix = `[Cache][${level.toUpperCase()}] ${message}`
 
     switch (level) {
       case 'debug':
-        console.debug(logMessage, data)
+        console.debug(prefix, data)
         break
       case 'info':
-        console.info(logMessage, data)
+        console.info(prefix, data)
         break
       case 'warn':
-        console.warn(logMessage, data)
+        console.warn(prefix, data)
         break
       case 'error':
-        console.error(logMessage, data)
+        console.error(prefix, data)
         break
     }
   }
 
   afterSet<T>(key: string, value: T): void {
-    this.options.logger('debug', `缓存已设置: ${key}`, { value })
+    this.options.logger('debug', `set: ${key}`, { value })
   }
 
   afterGet<T>(key: string, value: T | undefined): void {
-    if (value !== undefined) {
-      this.options.logger('debug', `缓存命中: ${key}`, { value })
-    }
-    else {
-      this.options.logger('debug', `缓存未命中: ${key}`)
-    }
+    this.options.logger('debug', value === undefined ? `miss: ${key}` : `hit: ${key}`, { value })
   }
 
   afterDelete(key: string, success: boolean): void {
     if (success) {
-      this.options.logger('debug', `缓存已删除: ${key}`)
+      this.options.logger('debug', `delete: ${key}`)
     }
   }
 
   afterClear(): void {
-    this.options.logger('info', '缓存已清空')
+    this.options.logger('info', 'clear all cache entries')
   }
 }
 
-/**
- * 创建日志插件
- * @param options - 插件选项
- * @returns 日志插件实例
- */
 export function createLoggerPlugin(options?: LoggerPluginOptions): CachePlugin {
   return new LoggerPlugin(options)
 }
-

@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "@ldesign/cache-vue",
-  "version": "1.0.0",
-  "description": "企业级缓存管理库 - Vue 3 适配器",
+  "version": "2.0.0",
+  "description": "Vue 3 adapter for @ldesign/cache-core",
   "keywords": [
     "cache",
     "vue",
@@ -20,6 +20,12 @@
       "import": "./es/index.js",
       "require": "./lib/index.cjs",
       "default": "./es/index.js"
+    },
+    "./plugin": {
+      "types": "./es/plugin.d.ts",
+      "import": "./es/plugin.js",
+      "require": "./lib/plugin.cjs",
+      "default": "./es/plugin.js"
     },
     "./components": {
       "types": "./es/components/index.d.ts",
@@ -69,6 +75,18 @@
       "require": "./lib/directives/*.cjs",
       "default": "./es/directives/*.js"
     },
+    "./plugins": {
+      "types": "./es/plugins/index.d.ts",
+      "import": "./es/plugins/index.js",
+      "require": "./lib/plugins/index.cjs",
+      "default": "./es/plugins/index.js"
+    },
+    "./plugins/*": {
+      "types": "./es/plugins/*.d.ts",
+      "import": "./es/plugins/*.js",
+      "require": "./lib/plugins/*.cjs",
+      "default": "./es/plugins/*.js"
+    },
     "./types": {
       "types": "./es/types/index.d.ts",
       "import": "./es/types/index.js",
@@ -99,7 +117,10 @@
   "scripts": {
     "build": "ldesign-builder build",
     "dev": "ldesign-builder build --watch",
-    "clean": "rimraf es lib dist"
+    "clean": "rimraf es lib dist",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@ldesign/cache-core": "workspace:*"
@@ -109,9 +130,12 @@
   },
   "devDependencies": {
     "@ldesign/builder": "workspace:*",
+    "@types/node": "^22.0.0",
     "@vitejs/plugin-vue": "^5.0.0",
-    "typescript": "^5.7.3",
+    "@vue/test-utils": "^2.4.4",
     "rimraf": "^5.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.4",
     "vue": "^3.3.0"
   },
   "typings": "./es/index.d.ts",

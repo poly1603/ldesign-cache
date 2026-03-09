@@ -1,112 +1,70 @@
-/**
- * Vue 缓存 Composable
- * 
- * 提供响应式的缓存操作接口
- * 
- * @module @ldesign/cache/vue/use-cache
+﻿/**
+ * Reactive cache composable.
  */
 
 import type { Ref } from 'vue'
-import { computed, onUnmounted, ref, shallowRef } from 'vue'
-import type { CacheEventType, CacheOptions, CacheStats } from '@ldesign/cache-core'
-import { CacheManager } from '@ldesign/cache-core'
+import { computed, getCurrentInstance, inject, onUnmounted, ref, shallowRef } from 'vue'
+import type {
+  BatchOptions,
+  CacheManager,
+  CacheOptions,
+  CacheQueryClient,
+  CacheStats,
+  InvalidatePredicate,
+  SetOptions,
+} from '@ldesign/cache-core'
+import { CacheEventType, CacheManager as CoreCacheManager } from '@ldesign/cache-core'
+import { CACHE_INJECTION_KEY } from '../constants'
 
-/**
- * useCache 选项
- */
-export interface UseCacheOptions extends CacheOptions {
-  /** 是否自动清理（组件卸载时�?*/
+export interface UseCacheOptions<T = any> extends CacheOptions<T> {
+  cache?: CacheManager<T>
   autoCleanup?: boolean
-  /** 是否启用响应式统�?*/
   reactiveStats?: boolean
 }
 
-/**
- * useCache 返回�?
- * @template T - 缓存值类�?
- */
 export interface UseCacheReturn<T = any> {
-  /** 缓存管理器实�?*/
   cache: CacheManager<T>
-  /** 获取缓存�?*/
+  source: Ref<'injected' | 'local'>
+  query: CacheQueryClient
   get: (key: string) => T | undefined
-  /** 设置缓存�?*/
-  set: (key: string, value: T, ttl?: number) => void
-  /** 删除缓存�?*/
+  set: (key: string, value: T, options?: number | SetOptions) => void
   delete: (key: string) => boolean
-  /** 检查缓存项是否存在 */
   has: (key: string) => boolean
-  /** 清空所有缓�?*/
   clear: () => void
-  /** 缓存大小（响应式�?*/
   size: Ref<number>
-  /** 所有键（响应式�?*/
   keys: Ref<string[]>
-  /** 统计信息（响应式�?*/
   stats: Ref<CacheStats>
-  /** 批量获取 */
   mget: (keys: string[]) => Map<string, T>
-  /** 批量设置 */
-  mset: (entries: Array<[string, T]>, ttl?: number) => void
-  /** 批量删除 */
-  mdel: (keys: string[]) => void
-  /** 清理过期�?*/
+  mset: (entries: Array<[string, T]>, options?: BatchOptions) => void
+  mdel: (keys: string[], options?: BatchOptions) => void
+  invalidateByTag: (tag: string) => number
+  invalidateByNamespace: (namespace: string) => number
+  invalidateWhere: (predicate: InvalidatePredicate<T>) => number
   cleanup: () => number
-  /** 监听事件 */
-  on: (type: CacheEventType, listener: (event: any) => void) => void
-  /** 移除事件监听 */
-  off: (type: CacheEventType, listener: (event: any) => void) => void
+  on: CacheManager<T>['on']
+  off: CacheManager<T>['off']
 }
 
-/**
- * Vue 缓存 Composable
- * 
- * 提供响应式的缓存操作，自动管理生命周�?
- * 
- * @template T - 缓存值类�?
- * @param options - 缓存配置选项
- * @returns 缓存操作接口
- * 
- * @example
- * ```vue
- * <script setup lang="ts">
- * import { useCache } from '@ldesign/cache/vue'
- * 
- * const { get, set, size, stats } = useCache<User>({
- *   strategy: 'lru',
- *   maxSize: 100,
- *   defaultTTL: 5000,
- *   enableStats: true
- * })
- * 
- * // 设置缓存
- * set('user:1', { id: 1, name: 'John' })
- * 
- * // 获取缓存
- * const user = get('user:1')
- * 
- * // 响应式统�?
- * console.log('缓存大小:', size.value)
- * console.log('命中�?', stats.value.hitRate)
- * </script>
- * ```
- */
-export function useCache<T = any>(options: UseCacheOptions = {}): UseCacheReturn<T> {
+export function useCache<T = any>(options: UseCacheOptions<T> = {}): UseCacheReturn<T> {
   const {
+    cache: explicitCache,
     autoCleanup = true,
     reactiveStats = true,
     ...cacheOptions
   } = options
 
-  // 创建缓存管理�?
-  const cache = new CacheManager<T>(cacheOptions)
+  const instance = getCurrentInstance()
+  const canInject = !!instance
+  const injected = canInject ? inject<CacheManager<T> | null>(CACHE_INJECTION_KEY, null) : null
 
-  // 响应式状�?
+  const cache = explicitCache ?? injected ?? new CoreCacheManager<T>(cacheOptions)
+  const source = ref<'injected' | 'local'>((explicitCache || injected) ? 'injected' : 'local')
+  const ownsCache = !explicitCache && !injected
+
   const size = ref(cache.size)
-  const keys = shallowRef<string[]>([])
+  const keys = shallowRef<string[]>(cache.keys())
   const stats = ref<CacheStats>(cache.getStats())
 
-  // 更新响应式状�?
   const updateReactiveState = () => {
     size.value = cache.size
     keys.value = cache.keys()
@@ -115,23 +73,30 @@ export function useCache<T = any>(options: UseCacheOptions = {}): UseCacheReturn
     }
   }
 
-  // 监听缓存变化，更新响应式状�?
+  const trackedEvents = [
+    CacheEventType.SET,
+    CacheEventType.DELETE,
+    CacheEventType.CLEAR,
+    CacheEventType.EVICT,
+    CacheEventType.EXPIRE,
+  ]
+
   if (reactiveStats) {
-    cache.on('set', updateReactiveState)
-    cache.on('delete', updateReactiveState)
-    cache.on('clear', updateReactiveState)
-    cache.on('evict', updateReactiveState)
-    cache.on('expire', updateReactiveState)
+    trackedEvents.forEach(event => cache.on(event, updateReactiveState))
   }
 
-  // 组件卸载时清�?
-  if (autoCleanup) {
+  if (instance) {
     onUnmounted(() => {
-      cache.destroy()
+      if (reactiveStats) {
+        trackedEvents.forEach(event => cache.off(event, updateReactiveState))
+      }
+
+      if (autoCleanup && ownsCache) {
+        cache.destroy()
+      }
     })
   }
 
-  // 包装方法，确保响应式更新
   const get = (key: string): T | undefined => {
     const value = cache.get(key)
     if (reactiveStats) {
@@ -140,8 +105,8 @@ export function useCache<T = any>(options: UseCacheOptions = {}): UseCacheReturn
     return value
   }
 
-  const set = (key: string, value: T, ttl?: number): void => {
-    cache.set(key, value, ttl)
+  const set = (key: string, value: T, setOptions?: number | SetOptions): void => {
+    cache.set(key, value, setOptions as any)
     updateReactiveState()
   }
 
@@ -158,18 +123,44 @@ export function useCache<T = any>(options: UseCacheOptions = {}): UseCacheReturn
     updateReactiveState()
   }
 
-  const mset = (entries: Array<[string, T]>, ttl?: number): void => {
-    cache.mset(entries, { ttl })
+  const mset = (entries: Array<[string, T]>, batchOptions?: BatchOptions): void => {
+    cache.mset(entries, batchOptions)
     updateReactiveState()
   }
 
-  const mdel = (keysToDelete: string[]): void => {
-    cache.mdel(keysToDelete)
+  const mdel = (keysToDelete: string[], batchOptions?: BatchOptions): void => {
+    cache.mdel(keysToDelete, batchOptions)
     updateReactiveState()
+  }
+
+  const invalidateByTag = (tag: string): number => {
+    const removed = cache.invalidateByTag(tag)
+    if (removed > 0) {
+      updateReactiveState()
+    }
+    return removed
+  }
+
+  const invalidateByNamespace = (namespace: string): number => {
+    const removed = cache.invalidateByNamespace(namespace)
+    if (removed > 0) {
+      updateReactiveState()
+    }
+    return removed
+  }
+
+  const invalidateWhere = (predicate: InvalidatePredicate<T>): number => {
+    const removed = cache.invalidateWhere(predicate)
+    if (removed > 0) {
+      updateReactiveState()
+    }
+    return removed
   }
 
   return {
     cache,
+    source: computed(() => source.value),
+    query: cache.query,
     get,
     set,
     delete: deleteKey,
@@ -181,9 +172,11 @@ export function useCache<T = any>(options: UseCacheOptions = {}): UseCacheReturn
     mget: cache.mget.bind(cache),
     mset,
     mdel,
+    invalidateByTag,
+    invalidateByNamespace,
+    invalidateWhere,
     cleanup: cache.cleanup.bind(cache),
     on: cache.on.bind(cache),
     off: cache.off.bind(cache),
   }
 }
-

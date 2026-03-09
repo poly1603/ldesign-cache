@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "@ldesign/cache-core",
-  "version": "1.0.0",
-  "description": "企业级缓存管理库 - 核心模块",
+  "version": "2.0.0",
+  "description": "Core cache capabilities for LDesign",
   "keywords": [
     "cache",
     "lru",
@@ -35,6 +35,18 @@
       "require": "./lib/constants/*.cjs",
       "default": "./es/constants/*.js"
     },
+    "./engine": {
+      "types": "./es/engine/index.d.ts",
+      "import": "./es/engine/index.js",
+      "require": "./lib/engine/index.cjs",
+      "default": "./es/engine/index.js"
+    },
+    "./engine/*": {
+      "types": "./es/engine/*.d.ts",
+      "import": "./es/engine/*.js",
+      "require": "./lib/engine/*.cjs",
+      "default": "./es/engine/*.js"
+    },
     "./plugins": {
       "types": "./es/plugins/index.d.ts",
       "import": "./es/plugins/index.js",
@@ -46,6 +58,18 @@
       "import": "./es/plugins/*.js",
       "require": "./lib/plugins/*.cjs",
       "default": "./es/plugins/*.js"
+    },
+    "./query": {
+      "types": "./es/query/index.d.ts",
+      "import": "./es/query/index.js",
+      "require": "./lib/query/index.cjs",
+      "default": "./es/query/index.js"
+    },
+    "./query/*": {
+      "types": "./es/query/*.d.ts",
+      "import": "./es/query/*.js",
+      "require": "./lib/query/*.cjs",
+      "default": "./es/query/*.js"
     },
     "./serializers": {
       "types": "./es/serializers/index.d.ts",
@@ -125,12 +149,13 @@
   "scripts": {
     "build": "ldesign-builder build",
     "dev": "ldesign-builder build --watch",
-    "clean": "rimraf es lib dist"
+    "clean": "rimraf es lib dist",
+    "type-check": "tsc --noEmit"
   },
   "devDependencies": {
     "@ldesign/builder": "workspace:*",
-    "typescript": "^5.7.3",
-    "rimraf": "^5.0.0"
+    "rimraf": "^5.0.0",
+    "typescript": "^5.7.3"
   },
   "typings": "./es/index.d.ts",
   "browser": "./dist/index.js"

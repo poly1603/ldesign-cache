@@ -1,17 +1,6 @@
-# @ldesign/cache-core
+﻿# @ldesign/cache-core
 
-企业级缓存管理库 - 核心模块
-
-## 特性
-
-- 🚀 **多种缓存策略** - 支持 LRU、LFU、FIFO、TTL 四种缓存策略
-- 📊 **统计功能** - 完整的缓存命中率、淘汰次数等统计信息
-- ⚡ **高性能** - O(1) 时间复杂度的核心操作
-- 💾 **持久化** - 支持 localStorage/sessionStorage 持久化
-- 🎯 **类型安全** - 完整的 TypeScript 类型定义
-- 🔔 **事件系统** - 支持监听缓存操作事件
-- 📦 **批量操作** - 支持批量读写操作
-- 🧹 **自动清理** - 自动清理过期项
+`@ldesign/cache-core` 是缓存能力的唯一实现层，包含：策略缓存、元信息索引、失效能力、查询增强（去重/SWR/prefetch）、插件钩子与 Engine 插件。
 
 ## 安装
 
@@ -21,141 +10,164 @@ pnpm add @ldesign/cache-core
 
 ## 快速开始
 
-### LRU 缓存
-
-```typescript
+```ts
 import { CacheManager, CacheStrategy } from '@ldesign/cache-core'
 
 const cache = new CacheManager({
   strategy: CacheStrategy.LRU,
-  maxSize: 100,
-  defaultTTL: 5000, // 5秒过期
-  enableStats: true
+  maxSize: 200,
+  defaultTTL: 10_000,
+  enableStats: true,
+  namespace: '业务默认命名空间',
 })
 
-// 设置缓存
-cache.set('key1', 'value1')
-cache.set('key2', 'value2', 10000) // 自定义 TTL
+cache.set('user:1', { id: 1, name: '张三' }, {
+  tags: ['user', 'profile'],
+  namespace: '用户模块',
+  priority: 8,
+})
 
-// 获取缓存
-const value = cache.get('key1')
-
-// 删除缓存
-cache.delete('key1')
-
-// 获取统计信息
+const user = cache.get('user:1')
 const stats = cache.getStats()
-console.log('命中率:', stats.hitRate)
 ```
 
-### LFU 缓存
+## 核心能力
 
-```typescript
-const cache = new CacheManager({
-  strategy: CacheStrategy.LFU,
-  maxSize: 100
+### 1. 元信息写入与读取
+
+```ts
+cache.set('article:100', { title: '重构说明' }, {
+  ttl: 30_000,
+  tags: ['article', 'cms'],
+  namespace: '内容中心',
+  priority: 6,
 })
 
-// LFU 会淘汰访问频率最低的项
-cache.set('key1', 'value1')
-cache.get('key1') // 频率 +1
-cache.get('key1') // 频率 +1
-// key1 频率高，不容易被淘汰
+const item = cache.getItem('article:100')
+// item?.tags / item?.namespace / item?.priority
 ```
 
-### FIFO 缓存
+### 2. 失效能力
 
-```typescript
-const cache = new CacheManager({
-  strategy: CacheStrategy.FIFO,
-  maxSize: 100
-})
-
-// FIFO 先进先出，最早添加的项会被优先淘汰
-cache.set('key1', 'value1')
-cache.set('key2', 'value2')
-// 当容量满时，key1 会被最先淘汰
+```ts
+cache.invalidateByTag('cms')
+cache.invalidateByNamespace('内容中心')
+cache.invalidateWhere(item => (item.priority ?? 0) < 3)
 ```
 
-### TTL 缓存
+### 3. 批量能力
 
-```typescript
-const cache = new CacheManager({
-  strategy: CacheStrategy.TTL,
-  defaultTTL: 5000, // 默认 5 秒过期
-  cleanupInterval: 1000 // 每秒清理一次
-})
-
-cache.set('key1', 'value1') // 5 秒后过期
-cache.set('key2', 'value2', 10000) // 10 秒后过期
-
-// 5 秒后
-console.log(cache.get('key1')) // undefined (已过期)
-```
-
-## 事件监听
-
-```typescript
-// 监听缓存命中
-cache.on('hit', (event) => {
-  console.log('缓存命中:', event.key)
-})
-
-// 监听缓存未命中
-cache.on('miss', (event) => {
-  console.log('缓存未命中:', event.key)
-})
-
-// 监听缓存淘汰
-cache.on('evict', (event) => {
-  console.log('缓存淘汰:', event.key, event.value)
-})
-
-// 监听缓存过期
-cache.on('expire', (event) => {
-  console.log('缓存过期:', event.key)
-})
-```
-
-## 批量操作
-
-```typescript
-// 批量设置
+```ts
 cache.mset([
-  ['key1', 'value1'],
-  ['key2', 'value2'],
-  ['key3', 'value3']
-], { ttl: 5000 })
-
-// 批量获取
-const values = cache.mget(['key1', 'key2', 'key3'])
-
-// 批量删除
-cache.mdel(['key1', 'key2'])
-```
-
-## 持久化
-
-```typescript
-const cache = new CacheManager({
-  strategy: CacheStrategy.LRU,
-  maxSize: 100,
-  enablePersistence: true,
-  storageType: 'localStorage', // 或 'sessionStorage'
-  storagePrefix: 'my-cache:'
+  ['k1', 'v1'],
+  ['k2', 'v2'],
+], {
+  tags: ['batch'],
+  namespace: '批量任务',
+  ttl: 5000,
 })
 
-// 缓存会自动保存到 localStorage
-cache.set('key1', 'value1')
-
-// 刷新页面后，缓存会自动恢复
+const data = cache.mget(['k1', 'k2'])
+cache.mdel(['k1'])
 ```
 
-## API 文档
+### 4. 查询增强（去重 / SWR / 预取）
 
-详细 API 文档请参考 TypeScript 类型定义。
+```ts
+const query = cache.query
+
+const result = await query.fetch({
+  key: 'api:user:1',
+  fetcher: () => fetch('/api/user/1').then(r => r.json()),
+  dedupe: true,
+  swr: true,
+  staleTime: 2000,
+  ttl: 30_000,
+  tags: ['api', 'user'],
+  namespace: '查询层',
+})
+
+await query.prefetch({
+  key: 'api:user:list',
+  fetcher: () => fetch('/api/users').then(r => r.json()),
+  ttl: 15_000,
+})
+
+await query.revalidate({
+  key: 'api:user:1',
+  fetcher: () => fetch('/api/user/1').then(r => r.json()),
+})
+```
+
+### 5. 插件钩子链路
+
+`CachePlugin` 已在 `CacheManager` 中完整生效：
+
+- `init`
+- `beforeSet / afterSet`
+- `beforeGet / afterGet`
+- `beforeDelete / afterDelete`
+- `beforeClear / afterClear`
+- `destroy`
+
+钩子异常会隔离，不会中断主流程。
+
+### 6. Engine 插件
+
+```ts
+import { createCacheEnginePlugin, cacheStateKeys } from '@ldesign/cache-core'
+
+const plugin = createCacheEnginePlugin({
+  maxSize: 300,
+  defaultTTL: 15000,
+  enablePersistence: true,
+})
+
+await engine.use(plugin)
+
+const manager = engine.state.get(cacheStateKeys.MANAGER)
+const api = engine.api.get('cache')
+```
+
+Engine 插件提供：
+
+- 稳定键：`cacheStateKeys`、`cacheEventKeys`
+- API 注册：`engine.api.register('cache')`
+- 访问器：`getInstance()`、`getContext()`
+
+## 迁移说明（重构前 -> 重构后）
+
+### `CacheOptions`
+
+- 删除了未落地实现的字段（如压缩/加密/自定义序列化等管理器层配置）。
+- 保留并聚焦已实现能力：策略、容量、TTL、持久化、插件、统计与回调。
+
+### `set`
+
+- 旧：`set(key, value, ttl?)`
+- 新：`set(key, value, ttlOrOptions?)`
+
+```ts
+cache.set('k', 'v', 5000)
+cache.set('k', 'v', {
+  ttl: 5000,
+  tags: ['a'],
+  namespace: 'ns',
+  priority: 10,
+})
+```
+
+### 新增失效 API
+
+- `invalidateByTag`
+- `invalidateByNamespace`
+- `invalidateWhere`
+
+### 查询增强统一到 core
+
+- 使用 `cache.query.fetch/prefetch/revalidate`
+- Vue 层只做响应式封装
 
 ## License
 
 MIT
-

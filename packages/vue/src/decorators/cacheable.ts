@@ -1,113 +1,63 @@
-/**
- * @Cacheable 装饰�?
- * 
- * 用于方法级别的缓�?
- * 
- * @module @ldesign/cache/vue/decorators/cacheable
+﻿/**
+ * @Cacheable decorator.
  */
 
 import type { CacheManager } from '@ldesign/cache-core'
 
-/**
- * Cacheable 装饰器选项
- */
 export interface CacheableOptions {
-  /** 缓存管理器实�?*/
   cache: CacheManager
-  /** 缓存键生成函数，默认使用方法名和参数生成 */
   keyGenerator?: (...args: any[]) => string
-  /** 缓存 TTL（毫秒） */
   ttl?: number
-  /** 是否缓存 undefined 结果 */
+  tags?: string[]
+  namespace?: string
+  priority?: number
   cacheUndefined?: boolean
-  /** 是否缓存 null 结果 */
   cacheNull?: boolean
 }
 
-/**
- * 默认键生成器
- * @param methodName - 方法�?
- * @param args - 方法参数
- * @returns 缓存�?
- */
 function defaultKeyGenerator(methodName: string, ...args: any[]): string {
   const argsKey = args.length > 0 ? `:${JSON.stringify(args)}` : ''
   return `${methodName}${argsKey}`
 }
 
-/**
- * @Cacheable 装饰�?
- * 
- * 用于缓存方法的返回�?
- * 
- * @param options - 装饰器选项
- * @returns 方法装饰�?
- * 
- * @example
- * ```typescript
- * import { Cacheable } from '@ldesign/cache/vue'
- * import { createCacheManager } from '@ldesign/cache-core'
- * 
- * const cache = createCacheManager()
- * 
- * class UserService {
- *   @Cacheable({ cache, ttl: 60000 })
- *   async getUser(id: string) {
- *     const res = await fetch(`/api/users/${id}`)
- *     return res.json()
- *   }
- * 
- *   @Cacheable({
- *     cache,
- *     keyGenerator: (id: string) => `user:${id}`,
- *     ttl: 300000
- *   })
- *   async getUserProfile(id: string) {
- *     const res = await fetch(`/api/users/${id}/profile`)
- *     return res.json()
- *   }
- * }
- * ```
- */
 export function Cacheable(options: CacheableOptions) {
   const {
     cache,
     keyGenerator,
     ttl,
+    tags,
+    namespace,
+    priority,
     cacheUndefined = false,
     cacheNull = false,
   } = options
 
   return function (
-    target: any,
+    _target: any,
     propertyKey: string,
     descriptor: PropertyDescriptor,
   ): PropertyDescriptor {
     const originalMethod = descriptor.value
 
     descriptor.value = async function (...args: any[]) {
-      // 生成缓存�?
       const cacheKey = keyGenerator
         ? keyGenerator(...args)
         : defaultKeyGenerator(propertyKey, ...args)
 
-      // 尝试从缓存获�?
       const cached = cache.get(cacheKey)
       if (cached !== undefined) {
         return cached
       }
 
-      // 执行原方�?
       const result = await originalMethod.apply(this, args)
 
-      // 检查是否应该缓存结�?
       const shouldCache
         = result !== undefined
         || (result === undefined && cacheUndefined)
         || (result === null && cacheNull)
 
       if (shouldCache) {
-        cache.set(cacheKey, result, ttl)
+        cache.set(cacheKey, result, { ttl, tags, namespace, priority })
       }
 
       return result
@@ -117,14 +67,8 @@ export function Cacheable(options: CacheableOptions) {
   }
 }
 
-/**
- * 创建 Cacheable 装饰�?
- * @param cache - 缓存管理器实�?
- * @returns Cacheable 装饰器工�?
- */
 export function createCacheable(cache: CacheManager) {
   return function (options?: Omit<CacheableOptions, 'cache'>) {
     return Cacheable({ cache, ...options })
   }
 }
-

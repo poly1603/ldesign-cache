@@ -1,15 +1,11 @@
-# @ldesign/cache-vue
+﻿# @ldesign/cache-vue
 
-企业级缓存管理库 - Vue 3 适配器
+`@ldesign/cache-vue` 是 `@ldesign/cache-core` 的 Vue 适配层，负责：
 
-## 特性
-
-- 🎯 **响应式** - 完全响应式的缓存操作
-- 🔌 **插件支持** - 提供 Vue 插件，全局注册
-- 🪝 **Composable** - 提供 `useCache` composable
-- 🔄 **自动清理** - 组件卸载时自动清理
-- 📊 **响应式统计** - 实时更新的缓存统计信息
-- 💉 **依赖注入** - 支持 Vue 的 provide/inject
+- 原生 Vue 插件接入（`createCachePlugin`）
+- Engine 模式接入（`createCacheEnginePlugin`）
+- 响应式 composables（`useCache`、`useCacheQuery`、`useSWR`）
+- 指令/组件/装饰器适配
 
 ## 安装
 
@@ -17,202 +13,157 @@
 pnpm add @ldesign/cache-vue
 ```
 
-## 快速开始
+## 双插件体系
 
-### 使用 Composable
+## 1) 原生 Vue 插件
 
-```vue
-<script setup lang="ts">
-import { useCache } from '@ldesign/cache-vue'
-
-const { get, set, size, stats, keys } = useCache<User>({
-  strategy: 'lru',
-  maxSize: 100,
-  defaultTTL: 5000,
-  enableStats: true
-})
-
-// 设置缓存
-set('user:1', { id: 1, name: 'John' })
-
-// 获取缓存
-const user = get('user:1')
-
-// 响应式统计
-console.log('缓存大小:', size.value)
-console.log('命中率:', stats.value.hitRate)
-console.log('所有键:', keys.value)
-</script>
-
-<template>
-  <div>
-    <p>缓存大小: {{ size }}</p>
-    <p>命中率: {{ (stats.hitRate * 100).toFixed(2) }}%</p>
-    <p>总请求: {{ stats.totalRequests }}</p>
-    <p>命中: {{ stats.hits }}</p>
-    <p>未命中: {{ stats.misses }}</p>
-  </div>
-</template>
-```
-
-### 使用插件
-
-```typescript
-// main.ts
+```ts
 import { createApp } from 'vue'
-import { CachePlugin } from '@ldesign/cache-vue'
 import App from './App.vue'
+import { createCachePlugin } from '@ldesign/cache-vue'
 
 const app = createApp(App)
 
-app.use(CachePlugin, {
+app.use(createCachePlugin({
   strategy: 'lru',
-  maxSize: 100,
-  defaultTTL: 5000,
-  enableStats: true,
-  globalPropertyName: '$cache' // 全局属性名
-})
+  maxSize: 200,
+  defaultTTL: 15000,
+  enablePersistence: true,
+  storageType: 'localStorage',
+  storagePrefix: 'cache-demo:',
+}))
 
 app.mount('#app')
 ```
 
-#### Composition API 中使用
+## 2) Engine 适配插件
 
-```vue
-<script setup lang="ts">
-import { inject } from 'vue'
-import { CACHE_INJECTION_KEY } from '@ldesign/cache-vue'
+```ts
+import { createVueEngine } from '@ldesign/engine-vue3'
+import { createCacheEnginePlugin } from '@ldesign/cache-vue'
 
-const cache = inject(CACHE_INJECTION_KEY)
+const cachePlugin = createCacheEnginePlugin({
+  maxSize: 200,
+  defaultTTL: 15000,
+  vue: {
+    globalPropertyName: '$cache',
+    registerDirective: true,
+    registerComponents: true,
+  },
+})
 
-// 使用缓存
-cache?.set('key', 'value')
-const value = cache?.get('key')
-</script>
+const engine = createVueEngine({
+  app: { rootComponent: App },
+  plugins: [cachePlugin as any],
+})
+
+engine.mount('#app')
 ```
 
-#### Options API 中使用
+该插件同时覆盖：
+
+- `app` 已可用时的立即安装
+- `app:created` 事件后的延迟安装
+
+## Composables
+
+## useCache
+
+`useCache` 优先使用注入实例（插件提供），未注入时才本地创建。
+
+```ts
+import { useCache } from '@ldesign/cache-vue'
+
+const { cache, set, get, stats, invalidateByTag } = useCache({
+  reactiveStats: true,
+})
+
+set('user:1', { id: 1 }, {
+  tags: ['user'],
+  namespace: '用户模块',
+  ttl: 5000,
+})
+
+const data = get('user:1')
+invalidateByTag('user')
+```
+
+## useCacheQuery
+
+基于 core 查询模块的响应式封装。
+
+```ts
+const { data, loading, isFromCache, execute, refetch } = useCacheQuery({
+  key: 'api:list',
+  queryFn: () => fetch('/api/list').then(r => r.json()),
+  dedupe: true,
+  swr: true,
+  staleTime: 2000,
+  ttl: 10000,
+})
+```
+
+## useSWR
+
+```ts
+const { data, isValidating, revalidate, mutate } = useSWR({
+  key: 'api:user:1',
+  fetcher: () => fetch('/api/user/1').then(r => r.json()),
+  staleTime: 1000,
+  ttl: 10000,
+})
+```
+
+## 指令/组件/装饰器
+
+### `v-cache`
 
 ```vue
-<script>
-export default {
-  mounted() {
-    // 使用全局属性
-    this.$cache.set('key', 'value')
-    const value = this.$cache.get('key')
-    
-    // 获取统计
-    const stats = this.$cache.getStats()
-    console.log('命中率:', stats.hitRate)
-  }
+<p v-cache="{ key: 'home:title', fetcher: loadTitle, ttl: 5000 }">加载中</p>
+```
+
+### `CacheProvider`
+
+```vue
+<CacheProvider :options="{ namespace: '局部命名空间' }" v-slot="{ cache }">
+  <button @click="cache.set('x', 1)">写入</button>
+</CacheProvider>
+```
+
+### `@Cacheable`
+
+```ts
+@Cacheable({ cache, ttl: 10000, namespace: '服务层', tags: ['api'] })
+async getUser(id: string) {
+  return request(`/api/user/${id}`)
 }
-</script>
 ```
 
-## 高级用法
+## 迁移说明（重构前 -> 重构后）
 
-### 事件监听
+### 插件结构
 
-```vue
-<script setup lang="ts">
-import { useCache } from '@ldesign/cache-vue'
+- 旧：单一 `plugin.ts`
+- 新：
+  - `plugins/plugin.ts`（原生 Vue）
+  - `plugins/engine-plugin.ts`（Engine 适配）
+  - `plugins/index.ts`（聚合导出）
 
-const { on, off } = useCache()
+### 注入键
 
-// 监听缓存命中
-on('hit', (event) => {
-  console.log('缓存命中:', event.key)
-})
+- 旧：多处重复定义
+- 新：`CACHE_INJECTION_KEY` 单一来源（`src/constants.ts`）
 
-// 监听缓存淘汰
-on('evict', (event) => {
-  console.log('缓存淘汰:', event.key, event.value)
-})
-</script>
-```
+### useCache 行为
 
-### 批量操作
+- 旧：默认本地创建，容易与插件实例割裂
+- 新：优先注入实例，未注入才创建本地实例
 
-```vue
-<script setup lang="ts">
-import { useCache } from '@ldesign/cache-vue'
+### useCacheQuery/useSWR
 
-const { mset, mget, mdel } = useCache<User>()
-
-// 批量设置
-mset([
-  ['user:1', { id: 1, name: 'John' }],
-  ['user:2', { id: 2, name: 'Jane' }],
-  ['user:3', { id: 3, name: 'Bob' }]
-], 5000)
-
-// 批量获取
-const users = mget(['user:1', 'user:2', 'user:3'])
-
-// 批量删除
-mdel(['user:1', 'user:2'])
-</script>
-```
-
-### 持久化
-
-```vue
-<script setup lang="ts">
-import { useCache } from '@ldesign/cache-vue'
-
-const { set, get } = useCache({
-  strategy: 'lru',
-  maxSize: 100,
-  enablePersistence: true,
-  storageType: 'localStorage',
-  storagePrefix: 'my-app:'
-})
-
-// 缓存会自动保存到 localStorage
-set('user:1', { id: 1, name: 'John' })
-
-// 刷新页面后，缓存会自动恢复
-</script>
-```
-
-## API 文档
-
-### useCache
-
-```typescript
-function useCache<T = any>(options?: UseCacheOptions): UseCacheReturn<T>
-```
-
-#### 选项
-
-- `strategy` - 缓存策略 ('lru' | 'lfu' | 'fifo' | 'ttl')
-- `maxSize` - 最大缓存容量
-- `defaultTTL` - 默认过期时间（毫秒）
-- `enableStats` - 是否启用统计
-- `enablePersistence` - 是否启用持久化
-- `storageType` - 存储类型 ('localStorage' | 'sessionStorage')
-- `autoCleanup` - 是否自动清理（组件卸载时）
-- `reactiveStats` - 是否启用响应式统计
-
-#### 返回值
-
-- `cache` - 缓存管理器实例
-- `get` - 获取缓存项
-- `set` - 设置缓存项
-- `delete` - 删除缓存项
-- `has` - 检查缓存项是否存在
-- `clear` - 清空所有缓存
-- `size` - 缓存大小（响应式）
-- `keys` - 所有键（响应式）
-- `stats` - 统计信息（响应式）
-- `mget` - 批量获取
-- `mset` - 批量设置
-- `mdel` - 批量删除
-- `cleanup` - 清理过期项
-- `on` - 监听事件
-- `off` - 移除事件监听
+- 旧：各自重复实现查询逻辑
+- 新：统一走 core 查询模块，Vue 仅做响应式包装
 
 ## License
 
 MIT
-
